@@ -49,7 +49,23 @@
     typedef long long int           int64;
 
 
-#define SOFT_WARE_VRESION			101			//软件版本号
+#define SOFT_WARE_VRESION			101				//软件版本号
+
+#define FIRMWARE_FREE					0			//无需固件升级
+#define FIRMWARE_DOWNLOADING			1			//固件正在下载中
+#define FIRMWARE_DOWNLOAD_WAIT			2			//等待服务器下发固件
+#define FIRMWARE_DOWNLOADED				3			//固件下载完成
+#define FIRMWARE_DOWNLOAD_DISCONNECT	4			//下载过程中连接中断
+#define FIRMWARE_UPDATING				5			//正在升级
+#define FIRMWARE_UPDATE_SUCCESS			6			//升级成功
+#define FIRMWARE_UPDATE_FAILED			7			//升级失败
+#define FIRMWARE_ERASE_SUCCESS			8			//擦除FLASH成功
+#define FIRMWARE_ERASE_FAIL				9			//擦除FLASH成功
+#define FIRMWARE_ERASEING				10			//正在擦除FLASH
+#define FIRMWARE_BAG_SIZE				130			//128 + 2字节crc
+#define FIRMWARE_RUN_FLASH_BASE_ADD		0x08006000	//程序运行地址
+#define FIRMWARE_BUCKUP_FLASH_BASE_ADD	0x08043000	//程序备份地址
+#define FIRMWARE_SIZE					FIRMWARE_BUCKUP_FLASH_BASE_ADD - FIRMWARE_RUN_FLASH_BASE_ADD
 
 #define DEVICE_TYPE					'G'			//设备类型
 #define DEBUG_LOG								//是否打印调试信息
@@ -190,11 +206,14 @@
 #define E_IMPORTANT_FLAG_ADD			7547	//重要事件标志
 #define E_IMPORTANT_FLAG_LEN			3
 
-#define FTP_SERVER_INFO_ADD				7550	//FTP服务器信息
-#define FTP_SERVER_INFO_LEN				214
+#define E_FTP_SERVER_INFO_ADD			7550	//FTP服务器信息
+#define E_FTP_SERVER_INFO_LEN			214
 
-#define FTP_FW_INFO_ADD					7764	//FTP固件信息
-#define FTP_FW_INFO_LEN					44
+#define E_FTP_FW_INFO_ADD				7764	//FTP固件信息
+#define E_FTP_FW_INFO_LEN				44
+
+#define E_FW_UPDATE_STATE_ADD			7808	//固件升级状态
+#define E_FW_UPDATE_STATE_LEN			15
 
 #define E_IMPORTEAT_ADD					8001	//重要事件记录SOE
 #define E_NORMAL_ADD					14145	//重要事件记录SOE
@@ -445,6 +464,9 @@ extern FTP_ServerInfo_S FTP_ServerInfo;
 /***************************固件参数*****************************/
 extern FTP_FrameWareInfo_S FTP_FrameWareInfo;
 
+/*************************固件升级状态***************************/
+extern FrameWareState_S FrameWareState;
+
 
 u16 MyStrstr(u8 *str1, u8 *str2, u16 str1_len, u16 str2_len);
 u8 GetDatBit(u32 dat);
@@ -505,6 +527,8 @@ u8 ReadSwitchMode(void);
 void ResetRemoteCurrentControl(void);
 u8 ReadFTP_ServerInfo(void);
 u8 ReadFTP_FrameWareInfo(void);
+void WriteFrameWareStateToEeprom(void);
+u8 ReadFrameWareState(void);
 u8 ReadFactoryCode(void);
 u8 ReadFactoryDeviceId(void);
 u8 ReadSoftWareVer(void);
@@ -515,12 +539,13 @@ u8 ReadDeviceModel(void);
 u8 ReadHardWareReleaseDate(void);
 u8 ReadLamosNumSupport(void);
 u8 ReadEventRecordList(void);
-u8 LookUpMatchedEnergySivingMode(void);
+u8 CheckAppointmentControlValid(void);
+u8 LookUpMatchedEnergySivingMode(u8 app_ctl);
 void StrategyListFree(pControlStrategy head);
 void StrategyListStateReset(pControlStrategy head,u8 mode);
-u8 UpdateControlStrategyList(void);
+u8 UpdateControlStrategyList(u8 app_ctl);
 
-
+void RestoreFactorySettings(u8 mode);
 
 void ReadParametersFromEEPROM(void);
 

@@ -53,20 +53,28 @@ void vTaskMAIN(void *pvParameters)
 			SetLightLevel(CurrentControl);
 		}
 
-		if(DeviceReset == 0x01 || ReConnectToServer == 0x01) //接收到重启的命令
+		if(DeviceReset != 0x00 || ReConnectToServer == 0x01) //接收到重启的命令
 		{
-			delay_ms(5000);
-
 			if(DeviceReset == 0x01)
 			{
+				delay_ms(5000);
+				
 				DeviceReset = 0;
 
 				__disable_fault_irq();							//重启指令
 				NVIC_SystemReset();
 			}
+			else if(DeviceReset == 0x02 || DeviceReset == 0x03)
+			{
+				RestoreFactorySettings(DeviceReset);
+				
+				DeviceReset = 0;
+			}
 
 			if(ReConnectToServer == 0x01)
 			{
+				delay_ms(5000);
+				
 				ReConnectToServer = 0x81;
 			}
 		}
@@ -210,14 +218,29 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 	static u8 y_m_d_matched = 0;		//年月日匹配成功标志 bit2 = 1年 bit1 = 1月 bit0 = 1日
 	static u8 y_m_d_effective_next = 0;	//年月日有效标志 bit2 = 1年有效 bit1 = 1月有效 bit0 = 1日有效
 	static u8 y_m_d_matched_next = 0;	//年月日匹配成功标志 bit2 = 1年 bit1 = 1月 bit0 = 1日
+	
+	static u8 appointment_control_valid = 0;	//预约控制生效标志
+	static u8 appointment_control_valid_c = 0;	//预约控制生效标志 比较
+	static u8 appointment_control_valid_r = 0;	//预约控制生效标志 刷新
 
 	pControlStrategy tmp_strategy = NULL;
-
-	if(NeedUpdateStrategyList == 1)
+	
+	appointment_control_valid = CheckAppointmentControlValid();		//查看预约控制是否生效
+	
+	if(appointment_control_valid_c != appointment_control_valid)	//预约控制状态有变化
 	{
-		NeedUpdateStrategyList = 0;
+		appointment_control_valid_c = appointment_control_valid;
+		
+		appointment_control_valid_r = 1;
+	}
 
-		ret = UpdateControlStrategyList();	//更新策略列表
+	if(NeedUpdateStrategyList == 1 || 
+	   appointment_control_valid_r == 1)	//需要更新策略
+	{	
+		NeedUpdateStrategyList = 0;
+		appointment_control_valid_r = 0;
+
+		ret = UpdateControlStrategyList(appointment_control_valid);	//更新策略列表
 
 		if(ret == 0)						//更新策略列表失败
 		{

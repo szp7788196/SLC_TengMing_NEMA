@@ -97,6 +97,9 @@ FTP_ServerInfo_S FTP_ServerInfo;
 /***************************固件参数*****************************/
 FTP_FrameWareInfo_S FTP_FrameWareInfo;
 
+/*************************固件升级状态***************************/
+FrameWareState_S FrameWareState;
+
 
 
 
@@ -551,7 +554,14 @@ u8 GetRTC_State(void)
 	
 	if(calendar.w_year >= 2019)
 	{
-		ret = 2;
+		if(GetTimeOK == 0)
+		{
+			ret = 2;
+		}
+		else if(GetTimeOK == 1)
+		{
+			ret = 1;
+		}
 	}
 	
 	return ret;
@@ -1367,7 +1377,7 @@ u8 ReadEnergySavingMode(void)
 		}
 		else
 		{
-			EnergySavingMode[i].mode_id = i;			//模式编号
+			EnergySavingMode[i].mode_id = 0;			//模式编号
 			memset(EnergySavingMode[i].mode_name,0,32);
 			memcpy(EnergySavingMode[i].mode_name,"DEFAULT ENERGY SAVING MODE",26);	//模式名称
 			EnergySavingMode[i].control_times = 0;		//控制次数
@@ -1522,12 +1532,12 @@ void ResetRemoteCurrentControl(void)
 u8 ReadFTP_ServerInfo(void)
 {
 	u8 ret = 0;
-	u8 buf[FTP_SERVER_INFO_LEN];
+	u8 buf[E_FTP_SERVER_INFO_LEN];
 	u8 temp_buf[64];
 
-	memset(buf,0,FTP_SERVER_INFO_LEN);
+	memset(buf,0,E_FTP_SERVER_INFO_LEN);
 
-	ret = ReadDataFromEepromToMemory(buf,FTP_SERVER_INFO_ADD,FTP_SERVER_INFO_LEN);
+	ret = ReadDataFromEepromToMemory(buf,E_FTP_SERVER_INFO_ADD,E_FTP_SERVER_INFO_LEN);
 
 	if(ret == 1)
 	{
@@ -1680,12 +1690,12 @@ u8 ReadFTP_ServerInfo(void)
 u8 ReadFTP_FrameWareInfo(void)
 {
 	u8 ret = 0;
-	u8 buf[FTP_FW_INFO_LEN];
+	u8 buf[E_FTP_FW_INFO_LEN];
 	u8 temp_buf[64];
 
-	memset(buf,0,FTP_FW_INFO_LEN);
+	memset(buf,0,E_FTP_FW_INFO_LEN);
 
-	ret = ReadDataFromEepromToMemory(buf,FTP_FW_INFO_ADD,FTP_FW_INFO_LEN);
+	ret = ReadDataFromEepromToMemory(buf,E_FTP_FW_INFO_ADD,E_FTP_FW_INFO_LEN);
 
 	if(ret == 1)
 	{
@@ -1719,6 +1729,73 @@ u8 ReadFTP_FrameWareInfo(void)
 		}
 
 		FTP_FrameWareInfo.length = 0;
+	}
+
+	return ret;
+}
+
+//将固件升级状态写入到EEPROM
+void WriteFrameWareStateToEeprom(void)
+{
+	u8 temp_buf[20];
+	
+	temp_buf[0]  = FrameWareState.state;
+	temp_buf[1]  = (u8)(FrameWareState.total_bags >> 8);
+	temp_buf[2]  = (u8)FrameWareState.total_bags;
+	temp_buf[3]  = (u8)(FrameWareState.current_bag_cnt >> 8);
+	temp_buf[4]  = (u8)FrameWareState.current_bag_cnt;
+	temp_buf[5]  = (u8)(FrameWareState.bag_size >> 8);
+	temp_buf[6]  = (u8)FrameWareState.bag_size;
+	temp_buf[7]  = (u8)(FrameWareState.last_bag_size >> 8);
+	temp_buf[8]  = (u8)FrameWareState.last_bag_size;
+	temp_buf[9]  = (u8)(FrameWareState.total_size >> 24);
+	temp_buf[10] = (u8)(FrameWareState.total_size >> 16);
+	temp_buf[11] = (u8)(FrameWareState.total_size >> 8);
+	temp_buf[12] = (u8)FrameWareState.total_size;
+	
+	WriteDataFromMemoryToEeprom(temp_buf,E_FW_UPDATE_STATE_ADD,E_FW_UPDATE_STATE_LEN - 2);
+}
+
+//读取固件设计状态
+u8 ReadFrameWareState(void)
+{
+	u8 ret = 0;
+	u8 buf[E_FW_UPDATE_STATE_LEN];
+
+	memset(buf,0,E_FW_UPDATE_STATE_LEN);
+
+	ret = ReadDataFromEepromToMemory(buf,E_FW_UPDATE_STATE_ADD,E_FW_UPDATE_STATE_LEN);
+
+	if(ret == 1)
+	{
+		FrameWareState.state 			= *(buf + 0);
+		FrameWareState.total_bags 		= ((((u16)(*(buf + 1))) << 8) & 0xFF00) + 
+		                                  (((u16)(*(buf + 2))) & 0x00FF);
+		FrameWareState.current_bag_cnt 	= ((((u16)(*(buf + 3))) << 8) & 0xFF00) + 
+		                                  (((u16)(*(buf + 4))) & 0x00FF);
+		FrameWareState.bag_size 		= ((((u16)(*(buf + 5))) << 8) & 0xFF00) + 
+		                                  (((u16)(*(buf + 6))) & 0x00FF);
+		FrameWareState.last_bag_size 	= ((((u16)(*(buf + 7))) << 8) & 0xFF00) + 
+		                                  (((u16)(*(buf + 8))) & 0x00FF);
+
+		FrameWareState.total_size 		= ((((u32)(*(buf + 9))) << 24) & 0xFF000000) +
+								          ((((u32)(*(buf + 10))) << 16) & 0x00FF0000) +
+								          ((((u32)(*(buf + 11))) << 8) & 0x0000FF00) +
+								          ((((u32)(*(buf + 12))) << 0) & 0x000000FF);
+		
+		ret = 1;
+	}
+	else
+	{
+		FrameWareState.state 			= FIRMWARE_FREE;
+		FrameWareState.total_bags 		= 0;
+		FrameWareState.current_bag_cnt 	= 0;
+		FrameWareState.bag_size 		= 0;
+		FrameWareState.last_bag_size 	= 0;
+
+		FrameWareState.total_size 		= 0;
+		
+		WriteFrameWareStateToEeprom();			//将默认值写入EEPROM
 	}
 
 	return ret;
@@ -1933,6 +2010,17 @@ u8 ReadEventRecordList(void)
 	u8 buf[EC1_LABLE_LEN];
 
 	memset(buf,0,EC1_LABLE_LEN);
+	
+	ret = ReadDataFromEepromToMemory(buf,E_IMPORTANT_FLAG_ADD,E_IMPORTANT_FLAG_LEN);
+
+	if(ret == 1)
+	{
+		EventRecordList.important_event_flag = buf[0];
+	}
+	else
+	{
+		EventRecordList.important_event_flag = 0;
+	}
 
 	ret = ReadDataFromEepromToMemory(buf,EC1_ADD,EC1_LEN);
 
@@ -1943,7 +2031,11 @@ u8 ReadEventRecordList(void)
 	else
 	{
 		EventRecordList.ec1 = 0;
+		
+		EventRecordList.important_event_flag = 0;
 
+		WriteDataFromMemoryToEeprom(&EventRecordList.important_event_flag,E_IMPORTANT_FLAG_ADD, 1);
+		
 		WriteDataFromMemoryToEeprom(&EventRecordList.ec1,EC1_ADD, 1);
 
 		WriteDataFromMemoryToEeprom(EventRecordList.lable1,EC1_LABLE_ADD, EC1_LABLE_LEN - 2);
@@ -1958,21 +2050,14 @@ u8 ReadEventRecordList(void)
 	else
 	{
 		EventRecordList.ec2 = 0;
+		
+		EventRecordList.important_event_flag = 0;
+
+		WriteDataFromMemoryToEeprom(&EventRecordList.important_event_flag,E_IMPORTANT_FLAG_ADD, 1);
 
 		WriteDataFromMemoryToEeprom(&EventRecordList.ec2,EC2_ADD, 1);
 
 		WriteDataFromMemoryToEeprom(EventRecordList.lable2,EC2_LABLE_ADD, EC2_LABLE_LEN - 2);
-	}
-
-	ret = ReadDataFromEepromToMemory(buf,E_IMPORTANT_FLAG_ADD,E_IMPORTANT_FLAG_LEN);
-
-	if(ret == 1)
-	{
-		EventRecordList.important_event_flag = buf[0];
-	}
-	else
-	{
-		EventRecordList.important_event_flag = 0;
 	}
 
 	ret = ReadDataFromEepromToMemory(buf,EC1_LABLE_ADD,EC1_LABLE_LEN);
@@ -1983,7 +2068,11 @@ u8 ReadEventRecordList(void)
 	}
 	else
 	{
+		EventRecordList.important_event_flag = 0;
+
 		memset(EventRecordList.lable1,0,EC1_LABLE_LEN - 2);
+		
+		WriteDataFromMemoryToEeprom(&EventRecordList.important_event_flag,E_IMPORTANT_FLAG_ADD, 1);
 
 		WriteDataFromMemoryToEeprom(EventRecordList.lable1,EC1_LABLE_ADD, EC1_LABLE_LEN - 2);
 
@@ -1998,6 +2087,10 @@ u8 ReadEventRecordList(void)
 	}
 	else
 	{
+		EventRecordList.important_event_flag = 0;
+		
+		WriteDataFromMemoryToEeprom(&EventRecordList.important_event_flag,E_IMPORTANT_FLAG_ADD, 1);
+		
 		memset(EventRecordList.lable2,0,EC2_LABLE_LEN - 2);
 
 		WriteDataFromMemoryToEeprom(EventRecordList.lable2,EC2_LABLE_ADD, EC2_LABLE_LEN - 2);
@@ -2008,25 +2101,79 @@ u8 ReadEventRecordList(void)
 	return ret;
 }
 
+//查询预约控制是否有效
+u8 CheckAppointmentControlValid(void)
+{
+	u8 ret = 0;
+	
+	struct tm tm_time;
+	time_t s_seconds = 0;	//起始秒计数 2000年开始
+	time_t e_seconds = 0;	//结束秒计数 2000年开始
+	time_t n_seconds = 0;	//当前秒计数 2000年开始
+	
+	tm_time.tm_year = (AppointmentControl.start_date[5] >> 4) * 10 + (AppointmentControl.start_date[5] & 0x0F) + 2000 - 1900;	//年
+	tm_time.tm_mon 	= ((AppointmentControl.start_date[4] >> 4) & 0x01) * 10 + (AppointmentControl.start_date[4] & 0x0F) - 1;	//月
+	tm_time.tm_mday = (AppointmentControl.start_date[3] >> 4) * 10 + (AppointmentControl.start_date[3] & 0x0F);					//日
+	tm_time.tm_hour = (AppointmentControl.start_date[2] >> 4) * 10 + (AppointmentControl.start_date[2] & 0x0F);					//时
+	tm_time.tm_min 	= (AppointmentControl.start_date[1] >> 4) * 10 + (AppointmentControl.start_date[1] & 0x0F);					//分
+	tm_time.tm_sec 	= (AppointmentControl.start_date[0] >> 4) * 10 + (AppointmentControl.start_date[0] & 0x0F);					//秒
+	
+	s_seconds = mktime(&tm_time);
+	
+	tm_time.tm_year = (AppointmentControl.end_date[5] >> 4) * 10 + (AppointmentControl.end_date[5] & 0x0F) + 2000 - 1900;	//年
+	tm_time.tm_mon 	= ((AppointmentControl.end_date[4] >> 4) & 0x01) * 10 + (AppointmentControl.end_date[4] & 0x0F) - 1;	//月
+	tm_time.tm_mday = (AppointmentControl.end_date[3] >> 4) * 10 + (AppointmentControl.end_date[3] & 0x0F);					//日
+	tm_time.tm_hour = (AppointmentControl.end_date[2] >> 4) * 10 + (AppointmentControl.end_date[2] & 0x0F);					//时
+	tm_time.tm_min 	= (AppointmentControl.end_date[1] >> 4) * 10 + (AppointmentControl.end_date[1] & 0x0F);					//分
+	tm_time.tm_sec 	= (AppointmentControl.end_date[0] >> 4) * 10 + (AppointmentControl.end_date[0] & 0x0F);					//秒
+	
+	e_seconds = mktime(&tm_time);
+	
+	if(s_seconds >= e_seconds)	//起始时间等于或晚于结束时间
+	{
+		return 0;
+	}
+	
+	tm_time.tm_year = calendar.w_year - 1900;	//年
+	tm_time.tm_mon 	= calendar.w_month - 1;		//月
+	tm_time.tm_mday = calendar.w_date;			//日
+	tm_time.tm_hour = calendar.hour;			//时
+	tm_time.tm_min 	= calendar.min;				//分
+	tm_time.tm_sec 	= calendar.sec;				//秒
+	
+	n_seconds = mktime(&tm_time);
+	
+	if(s_seconds <= n_seconds && n_seconds <= e_seconds)	//当前时间大于等于起始时间并且小于等于结束日时间
+	{
+		ret = 1;
+	}
+	else
+	{
+		ret = 0;
+	}
+	
+	return ret;
+}
+
 //查找和1号灯相匹配的节能运行模式
 //返回值为系统中的第n个节能模式
-u8 LookUpMatchedEnergySivingMode(void)
+u8 LookUpMatchedEnergySivingMode(u8 app_ctl)
 {
 	u8 ret = 0xFF;
 	u8 i = 0;
 	u8 match_num = 0;
 	u8 match_state = 0;
 	
-	if(LampsParameters.num >= 1)		//已设置基本参数的灯数
+	if(app_ctl == 1)								//预约控制有效
 	{
-		if(LampsRunMode.num >= 1)		//已设置运行模式的灯数
+		if(AppointmentControl.lamps_num != 0)		//预约控制灯数
 		{
 			if(LampsParameters.parameters[0].lamps_id == 
-				LampsRunMode.run_mode[0].lamps_id)			//灯具编号匹配成功
+			   AppointmentControl.run_mode[0].lamps_id)	//灯具编号匹配成功
 			{
 				for(i = 0; i < MAX_ENERGY_SAVING_MODE_NUM; i ++)
 				{
-					if(EnergySavingMode[i].mode_id == LampsRunMode.run_mode[0].energy_saving_mode_id)		//节能运行模式匹配成功
+					if(EnergySavingMode[i].mode_id == AppointmentControl.run_mode[0].energy_saving_mode_id)		//节能运行模式匹配成功
 					{
 						match_num = i;					//获取到的节能运行模式
 						match_state = 1;				//匹配成功标志
@@ -2040,6 +2187,37 @@ u8 LookUpMatchedEnergySivingMode(void)
 					if(EnergySavingMode[match_num].control_times >= 1)	//控制次数有效
 					{
 						ret = match_num;
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		if(LampsParameters.num >= 1)		//已设置基本参数的灯数
+		{
+			if(LampsRunMode.num >= 1)		//已设置运行模式的灯数
+			{
+				if(LampsParameters.parameters[0].lamps_id == 
+					LampsRunMode.run_mode[0].lamps_id)		//灯具编号匹配成功
+				{
+					for(i = 0; i < MAX_ENERGY_SAVING_MODE_NUM; i ++)
+					{
+						if(EnergySavingMode[i].mode_id == LampsRunMode.run_mode[0].energy_saving_mode_id)		//节能运行模式匹配成功
+						{
+							match_num = i;					//获取到的节能运行模式
+							match_state = 1;				//匹配成功标志
+							
+							i = MAX_ENERGY_SAVING_MODE_NUM;	//用于跳出for循环
+						}
+					}
+					
+					if(match_state == 1)					//节能运行模式匹配成功
+					{
+						if(EnergySavingMode[match_num].control_times >= 1)	//控制次数有效
+						{
+							ret = match_num;
+						}
 					}
 				}
 			}
@@ -2097,7 +2275,7 @@ void StrategyListStateReset(pControlStrategy head,u8 mode)
 }
 
 //获取控制策略(在节能运行模式中获取)
-u8 UpdateControlStrategyList(void)
+u8 UpdateControlStrategyList(u8 app_ctl)
 {
 	u8 ret = 0;
 	u8 i = 0;
@@ -2110,13 +2288,12 @@ u8 UpdateControlStrategyList(void)
 		xSemaphoreTake(xMutex_STRATEGY, portMAX_DELAY);
 	}
 
-	
 	StrategyListFree(ControlStrategy);		//释放策略列表
 	ControlStrategy = NULL;
 
-	num = LookUpMatchedEnergySivingMode();	//获取节能模式
+	num = LookUpMatchedEnergySivingMode(app_ctl);	//获取节能模式
 
-	if(num < MAX_ENERGY_SAVING_MODE_NUM)		//获取节能模式成功
+	if(num < MAX_ENERGY_SAVING_MODE_NUM)			//获取节能模式成功
 	{
 		ControlStrategy = (pControlStrategy)mymalloc(sizeof(pControlStrategy));
 		
@@ -2175,6 +2352,48 @@ u8 UpdateControlStrategyList(void)
 	}
 	
 	return ret;
+}
+
+//恢复出厂设置
+//mode=3时恢复网络设置
+void RestoreFactorySettings(u8 mode)
+{
+	u8 i = 0;
+	
+	if(mode == 3)
+	{
+		AT24CXX_WriteLenByte(SERVER_INFO_ADD + SERVER_INFO_LEN - 2,0xFFFF,2);			//恢复主站IP和端口配置
+	}
+	
+	AT24CXX_WriteLenByte(UP_COMM_PARA_ADD + UP_COMM_PARA_LEN - 2,0xFFFF,2);				//恢复上行通信口通信参数
+	AT24CXX_WriteLenByte(ER_OTHER_CONF_ADD + ER_OTHER_CONF_LEN - 2,0xFFFF,2);			//恢复终端事件记录配置参数
+	AT24CXX_WriteLenByte(DEV_BASIC_INFO_ADD + DEV_BASIC_INFO_LEN - 2,0xFFFF,2);			//恢复设备基本信息
+	AT24CXX_WriteLenByte(ER_TIME_CONF_ADD + ER_TIME_CONF_LEN - 2,0xFFFF,2);				//恢复终端事件检测时间参数
+	AT24CXX_WriteLenByte(ER_THRE_CONF_ADD + ER_THRE_CONF_LEN - 2,0xFFFF,2);				//恢复终端事件检测阈值参数
+	AT24CXX_WriteLenByte(RSA_ENCRY_PARA_ADD + RSA_ENCRY_PARA_LEN - 2,0xFFFF,2);			//恢复RSA加密参数
+	AT24CXX_WriteLenByte(SWITCH_DATE_DAYS_ADD + SWITCH_DATE_DAYS_LEN - 2,0xFFFF,2);		//恢复控制器开关灯时间数据
+	AT24CXX_WriteLenByte(LAMPS_NUM_PARA_ADD + LAMPS_NUM_PARA_LEN - 2,0xFFFF,2);			//恢复灯具基本信息参数
+	AT24CXX_WriteLenByte(LAMPS_NUM_MODE_ADD + LAMPS_NUM_MODE_LEN - 2,0xFFFF,2);			//恢复单灯运行模式参数
+	
+	for(i = 0; i < MAX_ENERGY_SAVING_MODE_NUM; i ++)
+	{
+		AT24CXX_WriteOneByte(E_SAVE_MODE_LABLE_ADD + i * E_SAVE_MODE_LEN,0);			//恢复单灯节能模式
+	}
+	
+	AT24CXX_WriteLenByte(APPOIN_LABLE_ADD + APPOIN_LABLE_LEN - 2,0xFFFF,2);				//恢复单灯预约控制数据
+	AT24CXX_WriteLenByte(ILLUM_THRE_ADD + ILLUM_THRE_LEN - 2,0xFFFF,2);					//恢复单灯照度开关阈值
+	AT24CXX_WriteLenByte(SWITCH_MODE_ADD + SWITCH_MODE_LEN - 2,0xFFFF,2);				//恢复单灯开关模式选择
+	AT24CXX_WriteLenByte(EC1_ADD + EC1_LEN - 2,0xFFFF,2);								//恢复重要事件计数器
+	AT24CXX_WriteLenByte(EC2_ADD + EC2_LEN - 2,0xFFFF,2);								//恢复一般事件计数器
+	AT24CXX_WriteLenByte(EC1_LABLE_ADD + EC1_LABLE_LEN - 2,0xFFFF,2);					//恢复重要事件标签数组
+	AT24CXX_WriteLenByte(EC2_LABLE_ADD + EC2_LABLE_LEN - 2,0xFFFF,2);					//恢复一般事件标签数组
+	AT24CXX_WriteLenByte(E_IMPORTANT_FLAG_ADD + E_IMPORTANT_FLAG_LEN - 2,0xFFFF,2);		//恢复重要事件标志
+	AT24CXX_WriteLenByte(E_FTP_SERVER_INFO_ADD + E_FTP_SERVER_INFO_LEN - 2,0xFFFF,2);	//恢复FTP服务器信息
+	AT24CXX_WriteLenByte(E_FTP_FW_INFO_ADD + E_FTP_FW_INFO_LEN - 2,0xFFFF,2);			//恢复重要事件标志
+	
+	ReadParametersFromEEPROM();															//恢复缓存中的数据
+	
+	NeedUpdateStrategyList = 1;															//重新加载策略
 }
 
 //在EEPROM中读取运行参数

@@ -76,7 +76,7 @@ void execute_callback( uint16_t       objid,
 	}
 }
 
-void res_update(u8 fn,time_t interval,u8 *immediately)
+void res_update(u8 afn,u8 fn,time_t interval,u8 *immediately)
 {
 	static time_t last_time = 0;
 	static time_t cur_time = 0;
@@ -110,7 +110,7 @@ void res_update(u8 fn,time_t interval,u8 *immediately)
 	
 	if((LinkLayerUpPacketCarrier.flag & NBIOT_UPDATED) != (u32)0x00)	//有数据需要发送
 	{
-		len = MakeLogin_out_heartbeatFrame(fn,buf);
+		len = MakeLogin_out_heartbeatFrame(afn,fn,buf);
 	}
 	
 	if(len == 0)
@@ -191,7 +191,7 @@ u8 SyncDataTimeFormBcxxModule(time_t sync_cycle)
 	static time_t time_s = 0;
 	char buf[32];
 
-	if((GetSysTick1s() - time_s >= sync_cycle) || GetTimeOK != 1)
+	if((GetSysTick1s() - time_s >= sync_cycle) && GetTimeOK != 1)
 	{
 		memset(buf,0,32);
 
@@ -223,6 +223,7 @@ u8 SyncDataTimeFormBcxxModule(time_t sync_cycle)
 void vTaskNET(void *pvParameters)
 {
 	int ret = 0;
+	u8 afn = 0;
 	u8 fn = 0;
 	u8 immediately = 0;
 	u16 time_out = 0;
@@ -322,16 +323,29 @@ void vTaskNET(void *pvParameters)
 			{
 				if(LogInOutState == 0x00)		//未登录，发送登陆数据包
 				{
+					afn = 0x02;
 					fn = 1;
 					time_out = UpCommPortPara.wait_slave_rsp_timeout;
 				}
 				else if(LogInOutState == 0x01)	//已登录，发送心跳数据包
 				{
-					fn = 3;
-					time_out = UpCommPortPara.heart_beat_cycle * 60;
+					if(FrameWareState.state == FIRMWARE_DOWNLOADING)
+					{
+						afn = 0x10;
+						fn = 13;
+						time_out = 0;
+						
+						FrameWareState.state = FIRMWARE_DOWNLOAD_WAIT;
+					}
+					else
+					{
+						afn = 0x02;
+						fn = 3;
+						time_out = UpCommPortPara.heart_beat_cycle * 60;
+					}
 				}
 				
-				res_update(fn,time_out,&immediately);	//向服务器发送数据包
+				res_update(afn,fn,time_out,&immediately);	//向服务器发送数据包
 			}
 		}
 		

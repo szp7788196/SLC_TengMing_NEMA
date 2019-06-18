@@ -324,6 +324,17 @@ typedef struct FTP_FrameWareInfo			//FTP升级固件信息
 	u32 length;								//固件大小
 }FTP_FrameWareInfo_S;
 
+typedef struct FrameWareState				//固件升级状态信息
+{
+	u8 state;								//当前状态
+	u16 total_bags;							//总包数
+	u16 current_bag_cnt;					//当前下载的包数
+	u16 bag_size;							//每包大小
+	u16 last_bag_size;						//最末包大小
+	u32 total_size;							//固件大小
+	
+}FrameWareState_S;
+
 
 
 extern ControlMsg_S control_msg_in;
@@ -346,7 +357,7 @@ void CombineControlMsg(u8 prm,u8 *c_msg);
 void GetUserDataSign(u8 *inbuf);
 u16 CombineUserData(u8 *u_data);
 u16 CombineCompleteFrame(u8 prm, u8 *outbuf);
-u16 MakeLogin_out_heartbeatFrame(u8 fn,u8 *outbuf);
+u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf);
 void CombineDataUnitSign(u8 da1,u8 da2,u8 dt1,u8 dt2,u16 *pn,u16 *fn);
 void SplitDataUnitSign(u16 pn,u16 fn,u8 *da1,u8 *da2,u8 *dt1,u8 *dt2);
 void GetUserData(u8 *inbuf,u16 len);

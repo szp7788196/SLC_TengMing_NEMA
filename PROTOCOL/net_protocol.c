@@ -322,11 +322,11 @@ u16 CombineCompleteFrame(u8 prm, u8 *outbuf)
 
 //制作登录/退出登录/心跳报文
 //fn 1:登录 2:退出登录 3:心跳
-u16 MakeLogin_out_heartbeatFrame(u8 fn,u8 *outbuf)
+u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 {
 	u16 ret = 0;
 	
-	user_data_sign_out.AFN = 0x02;
+	user_data_sign_out.AFN = afn;
 	user_data_out.num = 1;
 	user_data_out.data_unit[0].pn_fn.pn = 0;
 	user_data_out.data_unit[0].pn_fn.fn = fn;
@@ -351,6 +351,14 @@ u16 MakeLogin_out_heartbeatFrame(u8 fn,u8 *outbuf)
 			user_data_out.data_unit[0].msg = NULL;
 		break;
 		
+		case 13:
+			user_data_out.data_unit[0].len = 4;
+			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
+		
+			*(user_data_out.data_unit[0].msg + 0) = (u8)(FrameWareState.total_bags & 0x00FF);
+			*(user_data_out.data_unit[0].msg + 1) = (u8)(FrameWareState.total_bags >> 8);
+			*(user_data_out.data_unit[0].msg + 2) = (u8)(FrameWareState.current_bag_cnt & 0x00FF);
+			*(user_data_out.data_unit[0].msg + 3) = (u8)(FrameWareState.current_bag_cnt >> 8);
 		default:
 		break;
 	}
@@ -792,7 +800,7 @@ void GetUserData(u8 *inbuf,u16 len)
 					break;
 
 					case 13:
-						user_data_in.data_unit[user_data_in.num].len = 2 + 2 + 2 + ((((u16)(*(msg + 4))) << 8) + (u16)(*(msg + 5)));
+						user_data_in.data_unit[user_data_in.num].len = 2 + 2 + 2 + ((((u16)(*(msg + 5))) << 8) + (u16)(*(msg + 4)));
 					break;
 
 					default:
@@ -832,7 +840,10 @@ u16 UserDataUnitHandle(void)
 	u8 temp4[10];
 	s16 temp5 = 0;
 	u16 temp6 = 0;
+	u16 crc_read = 0;
+	u16 crc_cal = 0;
 	u8 temp_buf[64];
+	u16 temp7 = 0;
 
 	switch(user_data_sign_in.AFN)
 	{
@@ -2223,8 +2234,8 @@ u16 UserDataUnitHandle(void)
 					GetMemoryForSpecifyPointer(&FTP_ServerInfo.file5,strlen((char *)temp_buf), temp_buf);
 
 					WriteDataFromMemoryToEeprom(msg + 0,
-					                            FTP_SERVER_INFO_ADD,
-					                            FTP_SERVER_INFO_LEN - 2);	//将数据写入EEPROM
+					                            E_FTP_SERVER_INFO_ADD,
+					                            E_FTP_SERVER_INFO_LEN - 2);	//将数据写入EEPROM
 
 					user_data_out.data_unit[i].pn_fn.fn = 1;
 				break;
@@ -2246,44 +2257,134 @@ u16 UserDataUnitHandle(void)
 				                               (((u32)(*(msg + 38))) << 0);
 
 					WriteDataFromMemoryToEeprom(msg + 0,
-					                            FTP_FW_INFO_ADD,
-					                            FTP_FW_INFO_LEN - 2);	//将数据写入EEPROM
+					                            E_FTP_FW_INFO_ADD,
+					                            E_FTP_FW_INFO_LEN - 2);	//将数据写入EEPROM
 
 					user_data_out.data_unit[0].len = 2;
 					user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
 
-					if(FTP_FrameWareInfo.length > 245760)	//固件要小于240K = ((512 - 32) / 2) * 1024 = 245760 32K为BootLoader存储区域
+					if(FTP_FrameWareInfo.length > FIRMWARE_SIZE)	//固件要小于240K = ((512 - 32) / 2) * 1024 = 245760 32K为BootLoader存储区域
 					{
 						*(user_data_out.data_unit[0].msg + 0) = 0;
 						*(user_data_out.data_unit[0].msg + 1) = 2;
 					}
-					else if(search_str("xx.xx.xx", FTP_FrameWareInfo.version) == -1)	//与现有版本相同
+					else if(search_str(DeviceInfo.software_ver, FTP_FrameWareInfo.version) != -1)	//与现有版本相同
 					{
 						*(user_data_out.data_unit[0].msg + 0) = 0;
 						*(user_data_out.data_unit[0].msg + 1) = 1;
 					}
 					else	//可以升级
 					{
+						u8 page_num = 0;
+						u8 start_page = 0;
+						
+						FrameWareState.state 			= FIRMWARE_DOWNLOADING;
+						FrameWareState.total_bags 		= FTP_FrameWareInfo.length % 130 != 0 ? 
+						                                  FTP_FrameWareInfo.length / 130 + 1 : FTP_FrameWareInfo.length / 130;
+						FrameWareState.current_bag_cnt 	= 1;
+						FrameWareState.bag_size 		= FIRMWARE_BAG_SIZE;
+						FrameWareState.last_bag_size 	= FTP_FrameWareInfo.length % 130 != 0 ? 
+						                                  FTP_FrameWareInfo.length % 130 : FIRMWARE_BAG_SIZE;
+						FrameWareState.total_size 		= FTP_FrameWareInfo.length;
+						
+						WriteFrameWareStateToEeprom();	//将固件升级状态写入EEPROM
+						
+						start_page = (FIRMWARE_BUCKUP_FLASH_BASE_ADD - 0x08000000) / 2048 - 1;				//得到备份区的起始扇区
+						page_num = (FIRMWARE_BUCKUP_FLASH_BASE_ADD - FIRMWARE_RUN_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
+						
+						FLASH_Unlock();						//解锁FLASH
+						
+//						for(i = start_page; i < start_page + page_num; i ++)
+//						{
+//							FLASH_ErasePage(i * 2048 + FIRMWARE_BUCKUP_FLASH_BASE_ADD);	//擦除当前FLASH扇区
+//						}
+						
+						FLASH_Lock();						//上锁
+						
 						*(user_data_out.data_unit[0].msg + 0) = 1;
 						*(user_data_out.data_unit[0].msg + 1) = 0;
 					}
 				break;
 
 				case 13:
-					user_data_sign_out.AFN = 0x10;
+					user_data_out.num = 0;
+					user_data_sign_out.AFN = 0xFF;		//不需要给服务器回复ACK
 				
-					temp2 = ((((u16)(*(msg + 0))) << 8) + (u16)(*(msg + 1)));		//总分包数
-					temp3 = ((((u16)(*(msg + 2))) << 8) + (u16)(*(msg + 3)));		//当前分包数
-					temp6 = ((((u16)(*(msg + 4))) << 8) + (u16)(*(msg + 5)));		//包大小
+					temp2 = ((((u16)(*(msg + 1))) << 8) + (u16)(*(msg + 0)));		//总分包数
+					temp3 = ((((u16)(*(msg + 3))) << 8) + (u16)(*(msg + 2)));		//当前分包数
+					temp6 = ((((u16)(*(msg + 5))) << 8) + (u16)(*(msg + 4)));		//包大小
+				
+					if(temp2 != FrameWareState.total_bags)	//总包数匹配错误
+					{
+						break;
+					}
 
 					msg += 6;
-
-					//此处将下载的固件存入Flash
-
-					user_data_out.data_unit[0].len = 4;
-					user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
-
-					memcpy(user_data_out.data_unit[0].msg + 0,msg + 0,4);
+				
+					crc_read = (((u16)(*(msg + temp6 - 2))) << 8) + (u16)(*(msg + temp6 - 1));
+				
+					crc_cal = CRC16(msg,temp6 - 2,1);
+				
+//					if(crc_cal == crc_read)
+//					{
+						if(temp3 == FrameWareState.current_bag_cnt)
+						{
+							FLASH_Unlock();						//解锁FLASH
+							
+							if(temp6 == FIRMWARE_BAG_SIZE)
+							{
+								for(i = 0; i < (FIRMWARE_BAG_SIZE - 2) / 2; i ++)
+								{
+									temp7 = ((u16)(*(msg + i * 2 + 1)) << 8) + (u16)(*(msg + i * 2));
+									
+									FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * ((FIRMWARE_BAG_SIZE - 2) / 2) + i,temp7);
+								}
+							}
+							else if(temp6 < FIRMWARE_BAG_SIZE)
+							{
+								if(temp6 % 2 == 0)	//接到偶数包
+								{
+									for(i = 0; i < (temp6 - 2) / 2; i ++)
+									{
+										temp7 = ((u16)(*(msg + i * 2 + 1)) << 8) + (u16)(*(msg + i * 2));
+										
+										FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * ((FIRMWARE_BAG_SIZE - 2) / 2) + i,temp7);
+									}
+								}
+								else	//接到奇数包
+								{
+									for(i = 0; i < (temp6 + 1 - 2) / 2; i ++)
+									{
+										if(i == (temp6 + 1 - 2) / 2 - 1)
+										{
+											temp7 = ((u16)(*(msg + i * 2))) & 0x00FF;
+										
+											FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * ((FIRMWARE_BAG_SIZE - 2) / 2) + i,temp7);
+										}
+										else
+										{
+											temp7 = ((u16)(*(msg + i * 2 + 1)) << 8) + (u16)(*(msg + i * 2));
+										
+											FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * ((FIRMWARE_BAG_SIZE - 2) / 2) + i,temp7);
+										}
+									}
+								}
+							}
+							
+							FLASH_Lock();						//上锁
+							
+							if(temp3 < FrameWareState.total_bags)
+							{
+								FrameWareState.current_bag_cnt ++;
+								
+								FrameWareState.state = FIRMWARE_DOWNLOADING;		//下载完成
+							}
+							else if(temp3 == FrameWareState.total_bags)
+							{
+								FrameWareState.state = FIRMWARE_DOWNLOADED;		//下载完成
+							}
+						}
+//					}
 				break;
 
 				default:
