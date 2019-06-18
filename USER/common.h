@@ -517,7 +517,7 @@ u8 ReadLamosNumSupport(void);
 u8 ReadEventRecordList(void);
 u8 LookUpMatchedEnergySivingMode(void);
 void StrategyListFree(pControlStrategy head);
-void StrategyListStateReset(pControlStrategy head);
+void StrategyListStateReset(pControlStrategy head,u8 mode);
 u8 UpdateControlStrategyList(void);
 
 

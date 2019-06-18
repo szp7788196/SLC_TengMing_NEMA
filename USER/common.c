@@ -551,7 +551,7 @@ u8 GetRTC_State(void)
 	
 	if(calendar.w_year >= 2019)
 	{
-		ret = 1;
+		ret = 2;
 	}
 	
 	return ret;
@@ -2062,8 +2062,10 @@ void StrategyListFree(pControlStrategy head)
     }
 }
 
-//复位策略执行状态,每天0点0分0秒复位
-void StrategyListStateReset(pControlStrategy head)
+//mode=1复位绝对策略执行状态,每天0点0分0秒复位或开关状态改变后
+//mode=2复位相对策略执行状态,开关状态改变后
+//mode=0复位所有策略执行状态
+void StrategyListStateReset(pControlStrategy head,u8 mode)
 {
     while ( head )
     {
@@ -2071,7 +2073,21 @@ void StrategyListStateReset(pControlStrategy head)
 
         temp = head;
 		
-		if(temp->mode == 0x01)			//绝对时间控制方式的策略需要复位
+		if(mode == 1)
+		{
+			if(temp->mode == 0x01)			//绝对时间控制方式的策略需要复位
+			{
+				temp->state = WAIT_EXECUTE;	//复位为等待执行状态
+			}
+		}
+		else if(mode == 2)
+		{
+			if(temp->mode == 0x00)			//绝对时间控制方式的策略需要复位
+			{
+				temp->state = WAIT_EXECUTE;	//复位为等待执行状态
+			}
+		}
+		else if(mode == 0)
 		{
 			temp->state = WAIT_EXECUTE;	//复位为等待执行状态
 		}

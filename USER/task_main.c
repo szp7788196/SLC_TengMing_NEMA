@@ -14,6 +14,7 @@ unsigned portBASE_TYPE MAIN_Satck;
 void vTaskMAIN(void *pvParameters)
 {
 	time_t times_sec = 0;
+	u8 up_date_strategy_state = 0;
 
 	SetLightLevel(CurrentControl);
 
@@ -25,11 +26,16 @@ void vTaskMAIN(void *pvParameters)
 
 			if(GetTimeOK != 0)
 			{
-				CheckSwitchStatus(&ContrastControl);		//查询当前开关应该处于的状态
+				CheckSwitchStatus(&CurrentControl);		//查询当前开关应该处于的状态
 
-				if(ContrastControl._switch == 1)			//只有在开关为开的状态时才轮询策略
+				if(CurrentControl._switch == 1)			//只有在开关为开的状态时才轮询策略
 				{
-					LookUpStrategyList(ControlStrategy,&CurrentControl);	//轮训策略列表
+					if(CurrentControl._switch != ContrastControl._switch)
+					{
+						up_date_strategy_state = 1;
+					}
+					
+					LookUpStrategyList(ControlStrategy,&CurrentControl,&up_date_strategy_state);	//轮训策略列表
 				}
 			}
 		}
@@ -190,7 +196,7 @@ void CheckSwitchStatus(RemoteControl_S *ctrl)
 }
 
 //轮训策略列表
-u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl)
+u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *update)
 {
 	u8 ret = 0;
 
@@ -238,7 +244,16 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl)
 	
 	if(date != calendar.w_date)		//过了一天或重新设置了时间
 	{
-		StrategyListStateReset(strategy_head);
+		date = calendar.w_date;
+		
+		StrategyListStateReset(strategy_head,1);	//复位绝对时间策略状态
+	}
+	
+	if(*update == 1)				//开关状态有变化,由关变为开
+	{
+		*update = 0;
+		
+		StrategyListStateReset(strategy_head,0);	//复位所有策略状态
 	}
 
 	if(strategy_head != NULL && ControlStrategy->next != NULL)	//策略列表不为空

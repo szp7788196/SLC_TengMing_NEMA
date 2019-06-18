@@ -1450,7 +1450,7 @@ u16 UserDataUnitHandle(void)
 					case 9:
 						temp2 = ((((u16)(*(msg + 3))) << 8) + (u16)(*(msg + 2)));	//要查询的时间天数
 
-						user_data_out.data_unit[i].len = 1 + 1 + temp2 * 4;
+						user_data_out.data_unit[i].len = 1 + 1 + 2 + temp2 * 4;
 						user_data_out.data_unit[i].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[i].len);
 
 						temp5 = get_dates_diff(LampsSwitchProject.start_month,LampsSwitchProject.start_date,*(msg + 0),*(msg + 1));

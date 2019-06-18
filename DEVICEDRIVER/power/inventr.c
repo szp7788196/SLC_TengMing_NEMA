@@ -472,6 +472,8 @@ void SetLightLevel(RemoteControl_S control)
 		delay_ms(100);
 		
 		RELAY_OFF;
+		
+		return;
 	}
 	else
 	{
@@ -483,7 +485,7 @@ void SetLightLevel(RemoteControl_S control)
 		}
 	}
 
-#ifndef INTFC_0_10V
+#ifndef INTFC_FIXED
 	cd4051b_set_channel(control.interface);
 	delay_ms(10);
 #endif

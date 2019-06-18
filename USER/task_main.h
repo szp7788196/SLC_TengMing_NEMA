@@ -16,7 +16,7 @@ void vTaskMAIN(void *pvParameters);
 
 void CheckSwitchStatus(RemoteControl_S *ctrl);
 
-u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl);
+u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *update);
 
 
 

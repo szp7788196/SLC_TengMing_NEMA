@@ -60,6 +60,11 @@ void vTaskSENSOR(void *pvParameters)
 //		InputEnergyS 	= Att7059xGetEnergyS();
 //		delay_ms(300);
 
+		DeviceElectricPara.initial_brightness = LampsRunMode.run_mode[0].initial_brightness;
+		DeviceElectricPara.switch_state = CurrentControl.control_type;
+		DeviceElectricPara.brightness = CurrentControl.brightness;
+		DeviceElectricPara.run_state = 0;
+
 		InputPowerP = abs(InputPowerP);
 			
 		if(InputPowerP > 0 && InputPowerS > 0)
