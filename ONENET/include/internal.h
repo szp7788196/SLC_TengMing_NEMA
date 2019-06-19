@@ -145,7 +145,7 @@ struct _nbiot_device_t
     nbiot_write_callback_t      write_func;
 	nbiot_read_callback_t       read_func;
     nbiot_execute_callback_t    execute_func;
-    char                       miplbuf[512];
+    char                       miplbuf[1024];
 };
 
 /**

@@ -10,8 +10,8 @@
 extern volatile char rsp_ok;
 extern RingBuf ring_fifo;
 extern RingBuf ring_fifo1;
-extern uint8_t rx_fifo[512];
-extern uint8_t rx_fifo1[512];
+extern uint8_t rx_fifo[1024];
+extern uint8_t rx_fifo1[1024];
 extern int8_t dl_buf_id;
 
 /*

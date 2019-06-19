@@ -19,7 +19,7 @@ RCC_ClocksTypeDef RCC_Clocks;
 
 int main(void)
 {
-//	SCB->VTOR = FLASH_BASE | 0x08000; 	/* Vector Table Relocation in Internal FLASH. */
+	SCB->VTOR = FLASH_BASE | 0x06000; 	/* Vector Table Relocation in Internal FLASH. */
 //	IWDG_Init(IWDG_Prescaler_128,1600);	//128分频 312.5HZ 625为2秒
 
 	RCC_GetClocksFreq(&RCC_Clocks);		//查看各个总线的时钟频率
@@ -54,6 +54,8 @@ int main(void)
 //	}
 //	AT24CXX_WriteOneByte(UU_ID_ADD,255);
 
+//	AT24CXX_WriteLenByte(E_FW_UPDATE_STATE_ADD + E_FW_UPDATE_STATE_LEN - 2,0xFFFF,2);	//恢复OTA状态信息
+	
 	mem_init();
 
 	IWDG_Feed();				//喂看门狗

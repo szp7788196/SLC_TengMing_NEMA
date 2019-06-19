@@ -11,6 +11,7 @@
 #include "m53xx.h"
 #include "at_cmd.h"
 #include <stdio.h>
+#include "common.h"
 
 
 #ifdef NBIOT_DEBUG
@@ -97,7 +98,9 @@ int nbiot_udp_recv( void              *buff,
 
 	if(*read!=0)
 	{
+#ifdef DEBUG_LOG
 		printf("recv:%s\r\n",(char *)buff);
+#endif
 	}
 
 	return NBIOT_ERR_OK;

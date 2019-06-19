@@ -148,8 +148,10 @@ void netdev_init(void)
 	{
 		goto RE_INIT;
 	}
-
+	
+#ifdef DEBUG_LOG
 	printf("m5310-A init sucess\r\n");
+#endif
 }
 
 //设定模块波特率
@@ -954,8 +956,10 @@ void m53xx_notify_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint8_t 
 
 	strcat(cmd_tx_buff,"\r\n");
 
+#ifdef DEBUG_LOG
 	printf("send data:");
 	printf("%s\r\n",cmd_tx_buff);
+#endif
 
 	SentData(cmd_tx_buff,"OK",100);
 }
@@ -1005,8 +1009,10 @@ void m53xx_read_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint16_t m
 	strcat(cmd_tx_buff,tmp);
 	strcat(cmd_tx_buff,"\r\n");
 
+#ifdef DEBUG_LOG
 	printf("read rsp:");
 	printf("%s\r\n",cmd_tx_buff);
+#endif
 
 	SentData(cmd_tx_buff,"OK",100);
 }
@@ -1024,8 +1030,10 @@ void m53xx_write_rsp(int suc,uint16_t msgid)
 	strcat(cmd_tx_buff,tmp);
 	strcat(cmd_tx_buff,"\r\n");
 
+#ifdef DEBUG_LOG
 	printf("write rsp:");
 	printf("%s\r\n",cmd_tx_buff);
+#endif
 
 	SentData(cmd_tx_buff,"OK",100);
 
@@ -1044,8 +1052,10 @@ void m53xx_execute_rsp(int suc,uint16_t msgid)
 	strcat(cmd_tx_buff,tmp);
 	strcat(cmd_tx_buff,"\r\n");
 
+#ifdef DEBUG_LOG
 	printf("execute rsp:");
 	printf("%s\r\n",cmd_tx_buff);
+#endif
 
 	SentData(cmd_tx_buff,"OK",100);
 
@@ -1067,9 +1077,11 @@ void m53xx_discover_rsp(uint16_t objid,char *resid)
 
 	strcat(cmd_tx_buff,resid);
 	strcat(cmd_tx_buff,"\r\n");
+	
+#ifdef DEBUG_LOG
 	printf("discover rsp:");
-
 	printf("%s\r\n",cmd_tx_buff);
+#endif
 
 	SentData(cmd_tx_buff,"OK",100);
 

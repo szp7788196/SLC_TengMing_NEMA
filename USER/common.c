@@ -1760,6 +1760,8 @@ void WriteFrameWareStateToEeprom(void)
 u8 ReadFrameWareState(void)
 {
 	u8 ret = 0;
+	u16 page_num = 0;
+	u16 i = 0;
 	u8 buf[E_FW_UPDATE_STATE_LEN];
 
 	memset(buf,0,E_FW_UPDATE_STATE_LEN);
@@ -1787,6 +1789,7 @@ u8 ReadFrameWareState(void)
 	}
 	else
 	{
+		RESET_STATE:
 		FrameWareState.state 			= FIRMWARE_FREE;
 		FrameWareState.total_bags 		= 0;
 		FrameWareState.current_bag_cnt 	= 0;
@@ -1797,7 +1800,51 @@ u8 ReadFrameWareState(void)
 		
 		WriteFrameWareStateToEeprom();			//将默认值写入EEPROM
 	}
+	
+	if(FrameWareState.state == FIRMWARE_DOWNLOADING ||
+	   FrameWareState.state == FIRMWARE_DOWNLOAD_WAIT)
+	{
+		page_num = (FIRMWARE_MAX_FLASH_ADD - FIRMWARE_BUCKUP_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
+						
+		FLASH_Unlock();						//解锁FLASH
+		
+		for(i = 0; i < page_num; i ++)
+		{
+			FLASH_ErasePage(i * 2048 + FIRMWARE_BUCKUP_FLASH_BASE_ADD);	//擦除当前FLASH扇区
+		}
+		
+		FLASH_Lock();						//上锁
+	}
+	
+	if(FrameWareState.state == FIRMWARE_UPDATE_SUCCESS)
+	{
+		UpdateSoftWareVer();
+		
+		//添加升级成功事件记录
+		
+		goto RESET_STATE;
+	}
+	
+	return ret;
+}
 
+//终端软件版本号
+u8 UpdateSoftWareVer(void)
+{
+	u8 ret = 0;
+	
+	if(FTP_FrameWareInfo.version != NULL)
+	{	
+		if(search_str(DeviceInfo.software_ver, FTP_FrameWareInfo.version) == -1)
+		{
+			memcpy(DeviceInfo.software_ver,FTP_FrameWareInfo.version,8);
+			
+			WriteDataFromMemoryToEeprom(DeviceInfo.software_ver,SW_VERSION_ADD,SW_VERSION_LEN - 2);
+			
+			ret = 1;
+		}
+	}
+	
 	return ret;
 }
 
@@ -2390,6 +2437,7 @@ void RestoreFactorySettings(u8 mode)
 	AT24CXX_WriteLenByte(E_IMPORTANT_FLAG_ADD + E_IMPORTANT_FLAG_LEN - 2,0xFFFF,2);		//恢复重要事件标志
 	AT24CXX_WriteLenByte(E_FTP_SERVER_INFO_ADD + E_FTP_SERVER_INFO_LEN - 2,0xFFFF,2);	//恢复FTP服务器信息
 	AT24CXX_WriteLenByte(E_FTP_FW_INFO_ADD + E_FTP_FW_INFO_LEN - 2,0xFFFF,2);			//恢复重要事件标志
+	AT24CXX_WriteLenByte(E_FW_UPDATE_STATE_ADD + E_FW_UPDATE_STATE_LEN - 2,0xFFFF,2);	//恢复OTA状态信息
 	
 	ReadParametersFromEEPROM();															//恢复缓存中的数据
 	
@@ -2425,6 +2473,7 @@ void ReadParametersFromEEPROM(void)
 	ReadHardWareReleaseDate();
 	ReadLamosNumSupport();
 	ReadEventRecordList();
+	ReadFrameWareState();
 	
 //	UpdateControlStrategyList();
 

@@ -4,6 +4,7 @@
 #include "delay.h"
 #include <stdio.h>
 #include <time.h>
+#include "common.h"
 
 sendmsg callback=NULL;
 volatile char *flag_ok=NULL;

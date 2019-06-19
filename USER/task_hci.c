@@ -1,3 +1,4 @@
+#include "common.h"
 #include "task_hci.h"
 #include "delay.h"
 #include "usart.h"
@@ -12,8 +13,9 @@ void vTaskHCI(void *pvParameters)
 	u16 send_len1 = 0;
 	
 //	AT_CommandInit();
-	
+#ifdef DEBUG_LOG
 	printf("READY\r\n");
+#endif
 	
 	while(1)
 	{

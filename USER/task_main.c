@@ -78,8 +78,17 @@ void vTaskMAIN(void *pvParameters)
 				ReConnectToServer = 0x81;
 			}
 		}
+		
+		if(FrameWareState.state == FIRMWARE_DOWNLOADED)		//固件下载完成,即将引导新程序
+		{
+			delay_ms(1000);
+
+			__disable_fault_irq();							//重启指令
+			NVIC_SystemReset();
+		}
 
 		delay_ms(100);
+		
 //		MAIN_Satck = uxTaskGetStackHighWaterMark(NULL);
 	}
 }

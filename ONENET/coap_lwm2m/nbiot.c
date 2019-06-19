@@ -8,8 +8,8 @@
 #include "m53xx.h"
 #include "led.h"
 #include "task_net.h"
+#include "common.h"
 
-//uint8_t Registered_Flag=0;
 
 
 int nbiot_device_create( nbiot_device_t         **dev,
@@ -175,12 +175,12 @@ static void handle_write( nbiot_device_t        *dev,
         if ( !node )
         {
             m53xx_write_rsp(0, ackid);
-			
+
             break;
         }
 
         /* write */
-		
+
 		nbiot_node_write( node,
 						  uri,
 						  ackid,
@@ -324,14 +324,18 @@ static void handle_request( nbiot_device_t    *dev,
 
 	if ( COAP_READ == code )
 	{
+#ifdef DEBUG_LOG
 		printf("read objid %d instid %d resid %d\r\n",uri.objid,uri.instid,uri.resid);
+#endif
 
 		memset(buffer,0,max_buffer_len);
 		handle_read(dev,&uri,buffer,max_buffer_len,ackid);
 	}
 	if ( COAP_WRITE == code )
 	{
+#ifdef DEBUG_LOG
 		printf("write objid %d instid %d resid %d\r\n",uri.objid,uri.instid,uri.resid);
+#endif
 
 		msg = msg + 2;
 		while(*msg != ',')
@@ -351,7 +355,9 @@ static void handle_request( nbiot_device_t    *dev,
 
 	if ( COAP_EXECUTE == code )
 	{
+#ifdef DEBUG_LOG
 		printf("execute objid %d instid %d resid %d\r\n",uri.objid,uri.instid,uri.resid);
+#endif
 
 		while(*msg != ',')
 		tmp[i ++] =* (msg ++);
@@ -390,7 +396,7 @@ static void handle_transaction( nbiot_device_t *dev,
 		while(*msg != '\0')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
-		
+
 		transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
 
 		if(strstr(tmp,",1\r\n"))
@@ -411,7 +417,7 @@ static void handle_transaction( nbiot_device_t *dev,
 		else if(strstr(tmp,",6\r\n") != NULL)
 		{
 			transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-				
+
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
@@ -422,13 +428,13 @@ static void handle_transaction( nbiot_device_t *dev,
 			if(dev->state == STATE_REG_PENDING)
 			{
 				transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-				
+
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
 					                      dev->next_mid);
 			}
-			
+
 			dev->state = STATE_REG_FAILED;
 		}
 		else if(strstr(tmp,",11\r\n") != NULL)
@@ -436,7 +442,7 @@ static void handle_transaction( nbiot_device_t *dev,
 			if(dev->state == STATE_REG_UPDATE_PENDING)
 			{
 				transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-				
+
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
@@ -476,13 +482,13 @@ static void handle_transaction( nbiot_device_t *dev,
 			if(dev->state == STATE_REG_UPDATE_PENDING)
 			{
 				transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-				
+
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
 					                      dev->next_mid);
 			}
-			
+
 			dev->state = STATE_REG_UPDATE_NEEDED;
 		}
 		else if(strstr(tmp,",15\r\n")!=NULL)
@@ -490,7 +496,7 @@ static void handle_transaction( nbiot_device_t *dev,
 			if(dev->state == STATE_DEREG_PENDING)
 			{
 				transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-				
+
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
@@ -504,7 +510,7 @@ static void handle_transaction( nbiot_device_t *dev,
 		else if(strstr(tmp,",20\r\n") != NULL)
 		{
 			transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-				
+
 			if(transaction)
 				nbiot_transaction_del(dev,
 									  true,
@@ -595,7 +601,9 @@ static void handle_transaction( nbiot_device_t *dev,
 			if(uri.resid > 0)
 				uri.flag |= NBIOT_SET_RESID;
 
+#ifdef DEBUG_LOG
 			printf("observe objid %d instid %d resid %d\r\n",uri.objid,uri.instid,uri.resid);
+#endif
 
 			handle_observe(dev,&uri);
 		}
@@ -621,7 +629,7 @@ static void nbiot_handle_buffer( nbiot_device_t *dev,
 	discover = strstr((const char *)buffer, "+MIPLDISCOVER");
 	observe = strstr((const char *)buffer, "+MIPLOBSERVE");
 	event = strstr((const char *)buffer, "+MIPLEVENT");
-	
+
 	if(read != NULL)
 		code = COAP_READ;
 	else if(write != NULL)
@@ -634,7 +642,7 @@ static void nbiot_handle_buffer( nbiot_device_t *dev,
 		code = COAP_OBSERVE;
 	else if(event != NULL)
 		code = COAP_EVENT;
-	
+
 	if(COAP_READ <= code && code <= COAP_EXECUTE)//ÏÂÐÐÃüÁî
 	{
 		if(dev->state == STATE_REGISTERED ||
@@ -690,7 +698,7 @@ int nbiot_device_connect( nbiot_device_t *dev,
         }
 
         curr = nbiot_time();
-		
+
 	    nbiot_transaction_step( dev,
                                 curr,
                                 buffer,
@@ -709,7 +717,7 @@ int nbiot_device_connect( nbiot_device_t *dev,
 
         /* continue */
         nbiot_sleep(100);
-    } 
+    }
 	while( curr <= last + timeout );
 
    return STATE_ERROR( dev );
@@ -789,7 +797,7 @@ int nbiot_device_step( nbiot_device_t *dev,
         }
 
         memset(buffer,0,sizeof(buffer));
-		
+
         curr = nbiot_time();
 
         nbiot_register_step( dev,

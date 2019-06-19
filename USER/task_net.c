@@ -22,7 +22,9 @@ void write_callback( uint16_t       objid,
                      uint16_t       resid,
                      nbiot_value_t  *data )
 {
+#ifdef DEBUG_LOG
     printf( "write /%d/%d/%d：%d\r\n",objid,instid,resid,data->value.as_bool);
+#endif
 
     if(objid == 3200 && instid == 0 && resid == 5501)
 	{
@@ -36,7 +38,9 @@ void read_callback( uint16_t       objid,
                     uint16_t       resid,
                     nbiot_value_t *data )
 {
+#ifdef DEBUG_LOG
 	printf( "read /%d/%d/%d\r\n",objid,instid,resid );
+#endif
 }
 
 void execute_callback( uint16_t       objid,
@@ -50,15 +54,17 @@ void execute_callback( uint16_t       objid,
 	u8 hex_buf_out[512];
 	char str_buf[1024];
 	u16 len = 0;
-	
+
+#ifdef DEBUG_LOG
     printf( "execute /%d/%d/%d\r\n",objid,instid,resid );
+#endif
 	
 	if(objid == 3200 && instid == 0 && resid == 5501)
 	{
 		//协议数据包解析
-		
+#ifdef DEBUG_LOG
 		printf( "recv data len:%d\r\ndata:%s\r\n",size,(char *)buff);
-		
+#endif
 		StrToHex(hex_buf_in, (char *)buff, size / 2);
 		
 		len = NetDataFrameHandle(hex_buf_in,size / 2,hex_buf_out);
@@ -141,7 +147,9 @@ int create_device(void)
 	if ( ret )
 	{
 		nbiot_device_destroy( dev );
+#ifdef DEBUG_LOG
 		printf( "device create failed, code = %d.\r\n", ret );
+#endif
 	}
 
 	return ret;
@@ -157,7 +165,9 @@ int add_object_resource(void)
 	if(ret)
 	{
 		nbiot_device_destroy(dev);
+#ifdef DEBUG_LOG
 		printf("device add resource(LinkLayerDownPacketCarrier) failed, code = %d.\r\n", ret);
+#endif
 	}
 	
 	LinkLayerUpPacketCarrier.type = NBIOT_HEX_STRING;
@@ -166,7 +176,9 @@ int add_object_resource(void)
 	if(ret)
 	{
 		nbiot_device_destroy(dev);
+#ifdef DEBUG_LOG
 		printf("device add resource(LinkLayerUpPacketCarrier) failed, code = %d.\r\n", ret);
+#endif
 	}
 
 	nbiot_object_add(dev);
@@ -228,6 +240,7 @@ void vTaskNET(void *pvParameters)
 	u8 immediately = 0;
 	u16 time_out = 0;
 	u16 off_line_time_out = 0;
+	u16 download_time_out = 0;
 	time_t sync_csq_time = nbiot_time();
 	
 	GetTimeOK = GetRTC_State();		//获取RTC实时时钟状态
@@ -261,7 +274,9 @@ void vTaskNET(void *pvParameters)
 
 	if(ret)
 	{
+#ifdef DEBUG_LOG
 		printf( "connect OneNET failed.\r\n" );
+#endif
 
 		unregister_all_things();
 
@@ -269,7 +284,9 @@ void vTaskNET(void *pvParameters)
 	}
 	else
 	{
+#ifdef DEBUG_LOG
 		 printf( "connect OneNET success.\r\n" );
+#endif
 	}
 
 	while(1)
@@ -321,6 +338,13 @@ void vTaskNET(void *pvParameters)
 		{
 			if(ConnectState == ON_SERVER)
 			{
+				if(dev->observes == NULL)
+				{
+					unregister_all_things();
+
+					goto RE_INIT_M53XX;
+				}
+				
 				if(LogInOutState == 0x00)		//未登录，发送登陆数据包
 				{
 					afn = 0x02;
@@ -335,6 +359,8 @@ void vTaskNET(void *pvParameters)
 						fn = 13;
 						time_out = 0;
 						
+						download_time_out = 0;
+						
 						FrameWareState.state = FIRMWARE_DOWNLOAD_WAIT;
 					}
 					else
@@ -342,6 +368,14 @@ void vTaskNET(void *pvParameters)
 						afn = 0x02;
 						fn = 3;
 						time_out = UpCommPortPara.heart_beat_cycle * 60;
+						
+						if(FrameWareState.state == FIRMWARE_DOWNLOAD_WAIT)
+						{
+							if((download_time_out ++) >= 300)
+							{
+								FrameWareState.state = FIRMWARE_DOWNLOADING;
+							}
+						}
 					}
 				}
 				

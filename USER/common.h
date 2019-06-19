@@ -62,13 +62,14 @@
 #define FIRMWARE_ERASE_SUCCESS			8			//擦除FLASH成功
 #define FIRMWARE_ERASE_FAIL				9			//擦除FLASH成功
 #define FIRMWARE_ERASEING				10			//正在擦除FLASH
-#define FIRMWARE_BAG_SIZE				130			//128 + 2字节crc
+#define FIRMWARE_BAG_SIZE				258			//128 + 2字节crc
 #define FIRMWARE_RUN_FLASH_BASE_ADD		0x08006000	//程序运行地址
 #define FIRMWARE_BUCKUP_FLASH_BASE_ADD	0x08043000	//程序备份地址
+#define FIRMWARE_MAX_FLASH_ADD			0x08080000	//FLSAH最大地址
 #define FIRMWARE_SIZE					FIRMWARE_BUCKUP_FLASH_BASE_ADD - FIRMWARE_RUN_FLASH_BASE_ADD
 
 #define DEVICE_TYPE					'G'			//设备类型
-#define DEBUG_LOG								//是否打印调试信息
+//#define DEBUG_LOG								//是否打印调试信息
 #define NEW_BOARD
 
 #define INTFC_FIXED					INTFC_0_10V	//调光模式固定为0~10V
@@ -529,6 +530,7 @@ u8 ReadFTP_ServerInfo(void);
 u8 ReadFTP_FrameWareInfo(void);
 void WriteFrameWareStateToEeprom(void);
 u8 ReadFrameWareState(void);
+u8 UpdateSoftWareVer(void);
 u8 ReadFactoryCode(void);
 u8 ReadFactoryDeviceId(void);
 u8 ReadSoftWareVer(void);

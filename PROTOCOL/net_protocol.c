@@ -2275,29 +2275,29 @@ u16 UserDataUnitHandle(void)
 					}
 					else	//可以升级
 					{
-						u8 page_num = 0;
-						u8 start_page = 0;
+						u16 page_num = 0;
+//						u8 start_page = 0;
 						
 						FrameWareState.state 			= FIRMWARE_DOWNLOADING;
-						FrameWareState.total_bags 		= FTP_FrameWareInfo.length % 130 != 0 ? 
-						                                  FTP_FrameWareInfo.length / 130 + 1 : FTP_FrameWareInfo.length / 130;
+						FrameWareState.total_bags 		= FTP_FrameWareInfo.length % FIRMWARE_BAG_SIZE != 0 ? 
+						                                  FTP_FrameWareInfo.length / FIRMWARE_BAG_SIZE + 1 : FTP_FrameWareInfo.length / FIRMWARE_BAG_SIZE;
 						FrameWareState.current_bag_cnt 	= 1;
 						FrameWareState.bag_size 		= FIRMWARE_BAG_SIZE;
-						FrameWareState.last_bag_size 	= FTP_FrameWareInfo.length % 130 != 0 ? 
-						                                  FTP_FrameWareInfo.length % 130 : FIRMWARE_BAG_SIZE;
+						FrameWareState.last_bag_size 	= FTP_FrameWareInfo.length % FIRMWARE_BAG_SIZE != 0 ? 
+						                                  FTP_FrameWareInfo.length % FIRMWARE_BAG_SIZE : FIRMWARE_BAG_SIZE;
 						FrameWareState.total_size 		= FTP_FrameWareInfo.length;
 						
 						WriteFrameWareStateToEeprom();	//将固件升级状态写入EEPROM
 						
-						start_page = (FIRMWARE_BUCKUP_FLASH_BASE_ADD - 0x08000000) / 2048 - 1;				//得到备份区的起始扇区
-						page_num = (FIRMWARE_BUCKUP_FLASH_BASE_ADD - FIRMWARE_RUN_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
+//						start_page = (FIRMWARE_BUCKUP_FLASH_BASE_ADD - 0x08000000) / 2048;				//得到备份区的起始扇区
+						page_num = (FIRMWARE_MAX_FLASH_ADD - FIRMWARE_BUCKUP_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
 						
 						FLASH_Unlock();						//解锁FLASH
 						
-//						for(i = start_page; i < start_page + page_num; i ++)
-//						{
-//							FLASH_ErasePage(i * 2048 + FIRMWARE_BUCKUP_FLASH_BASE_ADD);	//擦除当前FLASH扇区
-//						}
+						for(i = 0; i < page_num; i ++)
+						{
+							FLASH_ErasePage(i * 2048 + FIRMWARE_BUCKUP_FLASH_BASE_ADD);	//擦除当前FLASH扇区
+						}
 						
 						FLASH_Lock();						//上锁
 						
@@ -2325,8 +2325,8 @@ u16 UserDataUnitHandle(void)
 				
 					crc_cal = CRC16(msg,temp6 - 2,1);
 				
-//					if(crc_cal == crc_read)
-//					{
+					if(crc_cal == crc_read)
+					{
 						if(temp3 == FrameWareState.current_bag_cnt)
 						{
 							FLASH_Unlock();						//解锁FLASH
@@ -2337,37 +2337,7 @@ u16 UserDataUnitHandle(void)
 								{
 									temp7 = ((u16)(*(msg + i * 2 + 1)) << 8) + (u16)(*(msg + i * 2));
 									
-									FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * ((FIRMWARE_BAG_SIZE - 2) / 2) + i,temp7);
-								}
-							}
-							else if(temp6 < FIRMWARE_BAG_SIZE)
-							{
-								if(temp6 % 2 == 0)	//接到偶数包
-								{
-									for(i = 0; i < (temp6 - 2) / 2; i ++)
-									{
-										temp7 = ((u16)(*(msg + i * 2 + 1)) << 8) + (u16)(*(msg + i * 2));
-										
-										FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * ((FIRMWARE_BAG_SIZE - 2) / 2) + i,temp7);
-									}
-								}
-								else	//接到奇数包
-								{
-									for(i = 0; i < (temp6 + 1 - 2) / 2; i ++)
-									{
-										if(i == (temp6 + 1 - 2) / 2 - 1)
-										{
-											temp7 = ((u16)(*(msg + i * 2))) & 0x00FF;
-										
-											FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * ((FIRMWARE_BAG_SIZE - 2) / 2) + i,temp7);
-										}
-										else
-										{
-											temp7 = ((u16)(*(msg + i * 2 + 1)) << 8) + (u16)(*(msg + i * 2));
-										
-											FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * ((FIRMWARE_BAG_SIZE - 2) / 2) + i,temp7);
-										}
-									}
+									FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * (FIRMWARE_BAG_SIZE - 2) + i * 2,temp7);
 								}
 							}
 							
@@ -2377,14 +2347,16 @@ u16 UserDataUnitHandle(void)
 							{
 								FrameWareState.current_bag_cnt ++;
 								
-								FrameWareState.state = FIRMWARE_DOWNLOADING;		//下载完成
+								FrameWareState.state = FIRMWARE_DOWNLOADING;	//当前包下载完成
 							}
 							else if(temp3 == FrameWareState.total_bags)
 							{
-								FrameWareState.state = FIRMWARE_DOWNLOADED;		//下载完成
+								FrameWareState.state = FIRMWARE_DOWNLOADED;		//全部下载完成
+								
+								WriteFrameWareStateToEeprom();
 							}
 						}
-//					}
+					}
 				break;
 
 				default:

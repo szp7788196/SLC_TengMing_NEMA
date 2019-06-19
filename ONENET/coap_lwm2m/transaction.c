@@ -5,6 +5,7 @@
 
 #include "internal.h"
 #include "stdio.h"
+#include "common.h"
 
 int nbiot_transaction_add( nbiot_device_t              *dev,
 	                       bool                         update,
@@ -102,8 +103,9 @@ void nbiot_transaction_step( nbiot_device_t *dev,
                 else if ( COAP_MAX_RETRANSMIT+1 >= transaction->counter )
                 {
 					/* retry send */
-
+#ifdef DEBUG_LOG
 					printf("retramit:");
+#endif
 
 					nbiot_udp_send(transaction->buffer,transaction->buffer_len);
 

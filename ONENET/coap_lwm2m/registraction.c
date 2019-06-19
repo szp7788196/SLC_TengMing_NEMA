@@ -7,6 +7,7 @@
 #include "m53xx.h"
 #include "led.h"
 #include <stdio.h>
+#include "common.h"
 
 #define REGISTER_START  1
 #define REGISTER_UPDATE 2
@@ -94,7 +95,9 @@ int nbiot_register_update( nbiot_device_t *dev,
 	size_t length=0;
 //	if (dev->state == STATE_REG_UPDATE_NEEDED )
 	{
+#ifdef DEBUG_LOG
 		printf("update\r\n");
+#endif
 
 		length = m53xx_register_update(dev->life_time,0,buffer,buffer_len);
 

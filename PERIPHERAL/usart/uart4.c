@@ -14,14 +14,14 @@
 volatile char rsp_ok=0;
 RingBuf ring_fifo;
 RingBuf ring_fifo1;
-uint8_t rx_fifo[512];
-uint8_t rx_fifo1[512];
+uint8_t rx_fifo[1024];
+uint8_t rx_fifo1[1024];
 int8_t dl_buf_id = -1;
 
-FIFO(dl_buf,1,512);
+FIFO(dl_buf,1,1024);
 
 #define UART_DMA 1
-#define MAX_RCV_LEN 512
+#define MAX_RCV_LEN 1024
 #ifdef UART_DMA
 #include "stm32f10x.h"
 #include "stm32f10x_dma.h"
