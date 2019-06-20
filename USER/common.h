@@ -55,7 +55,7 @@
 #define FIRMWARE_DOWNLOADING			1			//固件正在下载中
 #define FIRMWARE_DOWNLOAD_WAIT			2			//等待服务器下发固件
 #define FIRMWARE_DOWNLOADED				3			//固件下载完成
-#define FIRMWARE_DOWNLOAD_DISCONNECT	4			//下载过程中连接中断
+#define FIRMWARE_DOWNLOAD_FAILED		4			//下载失败
 #define FIRMWARE_UPDATING				5			//正在升级
 #define FIRMWARE_UPDATE_SUCCESS			6			//升级成功
 #define FIRMWARE_UPDATE_FAILED			7			//升级失败
@@ -70,7 +70,7 @@
 
 #define DEVICE_TYPE					'G'			//设备类型
 //#define DEBUG_LOG								//是否打印调试信息
-#define NEW_BOARD
+#define EVENT_RECORD							//是否检测并记录
 
 #define INTFC_FIXED					INTFC_0_10V	//调光模式固定为0~10V
 
@@ -97,8 +97,8 @@
 #define EVENT_ERC51					51
 #define EVENT_ERC52					52
 
-#define SWITCH_ON_MIN_CURRENT		10.0f
-#define SWITCH_OFF_MAX_CURRENT		20.0f
+#define SWITCH_ON_MIN_CURRENT		25.0f
+#define SWITCH_OFF_MAX_CURRENT		50.0f
 
 #define WAIT_EXECUTE				0		//等待执行
 #define EXECUTING					1		//正在执行

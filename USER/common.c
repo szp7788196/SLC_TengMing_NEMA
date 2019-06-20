@@ -1,6 +1,7 @@
 #include "common.h"
 #include "24cxx.h"
 #include "m53xx.h"
+#include "event.h"
 
 
 //u8 HoldReg[HOLD_REG_LEN];			//保持寄存器 临时使用
@@ -1119,7 +1120,7 @@ u8 ReadEventDetectTimeConf(void)
 		EventDetectConf.router_fault_detect_interval	= 3;
 		EventDetectConf.turn_on_collect_delay 			= 1;
 		EventDetectConf.turn_off_collect_delay 			= 1;
-		EventDetectConf.current_detect_delay 			= 10;
+		EventDetectConf.current_detect_delay 			= 1;
 	}
 
 	return ret;
@@ -1820,7 +1821,9 @@ u8 ReadFrameWareState(void)
 	{
 		UpdateSoftWareVer();
 		
-		//添加升级成功事件记录
+#ifdef EVENT_RECORD
+		CheckEventsEC51(0x00,DeviceInfo.software_ver);		//升级结果事件记录
+#endif
 		
 		goto RESET_STATE;
 	}

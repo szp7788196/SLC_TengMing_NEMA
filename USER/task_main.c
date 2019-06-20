@@ -1,9 +1,8 @@
 #include "task_main.h"
 #include "common.h"
 #include "delay.h"
-#include "usart.h"
 #include "inventr.h"
-#include "pwm.h"
+#include "event.h"
 
 
 TaskHandle_t xHandleTaskMAIN = NULL;
@@ -15,80 +14,116 @@ void vTaskMAIN(void *pvParameters)
 {
 	time_t times_sec = 0;
 	u8 up_date_strategy_state = 0;
+	time_t time_cnt = 0;
+	u8 get_e_para_ok = 0;
 
-	SetLightLevel(CurrentControl);
+	SetLightLevel(CurrentControl);						//上电按照默认设置亮灯
 
 	while(1)
 	{
-		if(GetSysTick1s() - times_sec >= 1)
+		if(GetSysTick1s() - times_sec >= 1)				//每1秒钟轮训一次
 		{
 			times_sec = GetSysTick1s();
 
-			if(GetTimeOK != 0)
+			if(GetTimeOK != 0)							//系统时间状态
 			{
 				CheckSwitchStatus(&CurrentControl);		//查询当前开关应该处于的状态
 
 				if(CurrentControl._switch == 1)			//只有在开关为开的状态时才轮询策略
 				{
-					if(CurrentControl._switch != ContrastControl._switch)
+					if(CurrentControl._switch != ContrastControl._switch)	//开灯之后要更新策略状态表
 					{
 						up_date_strategy_state = 1;
 					}
-					
+
 					LookUpStrategyList(ControlStrategy,&CurrentControl,&up_date_strategy_state);	//轮训策略列表
 				}
 			}
 		}
 
-		if(ContrastControl._switch != CurrentControl._switch ||
-		   ContrastControl.control_type != CurrentControl.control_type ||
-		   ContrastControl.brightness != CurrentControl.brightness ||
-		   ContrastControl.interface != CurrentControl.interface)
+		if(ContrastControl._switch != CurrentControl._switch ||				//开关状态有变化
+		   ContrastControl.control_type != CurrentControl.control_type ||	//控制方式有变化
+		   ContrastControl.brightness != CurrentControl.brightness ||		//亮度有变化
+		   ContrastControl.interface != CurrentControl.interface)			//控制接口有变化
 		{
 			ContrastControl._switch = CurrentControl._switch;
 			ContrastControl.control_type = CurrentControl.control_type;
 			ContrastControl.brightness = CurrentControl.brightness;
 			ContrastControl.interface = CurrentControl.interface;
 
-			SetLightLevel(CurrentControl);
-		}
+			SetLightLevel(CurrentControl);	//调光
 
-		if(DeviceReset != 0x00 || ReConnectToServer == 0x01) //接收到重启的命令
+			time_cnt = GetSysTick1s();		//复位获取当前状态电参数计时器
+			get_e_para_ok = 0;				//复位获取当前电参数标志 0:未获取 1:以获取
+		}
+		else
 		{
-			if(DeviceReset == 0x01)
+			if(GetSysTick1s() - time_cnt >= EventDetectConf.current_detect_delay * 60 / 2)			//等到电流检测延时的1/2时采集电参数
 			{
-				delay_ms(5000);
-				
-				DeviceReset = 0;
+				if(get_e_para_ok == 0)		//未获取当前电参数
+				{
+					get_e_para_ok = 1;		//以获取当前电参数
 
-				__disable_fault_irq();							//重启指令
-				NVIC_SystemReset();
-			}
-			else if(DeviceReset == 0x02 || DeviceReset == 0x03)
-			{
-				RestoreFactorySettings(DeviceReset);
-				
-				DeviceReset = 0;
-			}
-
-			if(ReConnectToServer == 0x01)
-			{
-				delay_ms(5000);
-				
-				ReConnectToServer = 0x81;
+					CurrentControl.current = InputCurrent;		//获取当前电流值
+					CurrentControl.voltage = InputVoltage;		//获取当前电压值
+				}
 			}
 		}
-		
+
+#ifdef EVENT_RECORD
+		CheckEventsEC15(CurrentControl);	//单灯正常开灯记录
+		CheckEventsEC16(CurrentControl);	//单灯正常关灯记录
+		CheckEventsEC17(CurrentControl);	//单灯异常开灯记录
+		CheckEventsEC18(CurrentControl);	//单灯异常关灯记录
+		CheckEventsEC19(CurrentControl);	//单灯电流过大记录
+		CheckEventsEC20(CurrentControl);	//单灯电流过小记录
+		CheckEventsEC52(CurrentControl);	//单灯状态变化记录
+#endif
+
+		if(DeviceReset != 0x00 || ReConnectToServer == 0x01)	//接收到重启的命令
+		{
+			if(DeviceReset == 0x01)			//ReBoot标志
+			{
+				delay_ms(5000);				//延时5秒,等待最后的报文发送完成
+
+				DeviceReset = 0;			//复位ReBoot标志
+
+				__disable_fault_irq();		//关闭全局中断
+				NVIC_SystemReset();			//重启设备
+			}
+			else if(DeviceReset == 0x02 || DeviceReset == 0x03)	//恢复出厂设置2:恢复出厂设置除网络参数外 3:恢复所有参数到出厂设置
+			{
+				RestoreFactorySettings(DeviceReset);			//恢复出厂设置
+
+				DeviceReset = 0;			//复位恢复出厂设置标志
+			}
+
+			if(ReConnectToServer == 0x01)	//上行网络重连标志
+			{
+				delay_ms(5000);				//延时5秒,等待最后的报文发送完成
+
+				ReConnectToServer = 0x81;	//置位重连标志
+			}
+		}
+
 		if(FrameWareState.state == FIRMWARE_DOWNLOADED)		//固件下载完成,即将引导新程序
 		{
-			delay_ms(1000);
+			delay_ms(1000);									//延时1秒,等待固件状态存入EEPROM
 
-			__disable_fault_irq();							//重启指令
-			NVIC_SystemReset();
+			__disable_fault_irq();							//关闭全局中断
+			NVIC_SystemReset();								//重启指令
+		}
+		else if(FrameWareState.state == FIRMWARE_DOWNLOAD_FAILED)
+		{
+			FrameWareState.state = FIRMWARE_FREE;			//暂时不进行固件下载,等到下次上电的时候再下载
+			
+#ifdef EVENT_RECORD
+			CheckEventsEC51(0x01,DeviceInfo.software_ver);	//固件升级失败
+#endif
 		}
 
 		delay_ms(100);
-		
+
 //		MAIN_Satck = uxTaskGetStackHighWaterMark(NULL);
 	}
 }
@@ -218,7 +253,7 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 	u8 ret = 0;
 
 	static u8 date = 0;
-	
+
 	static time_t start_time = 0;		//开始执行时间
 	static time_t total_time = 0;		//执行结束时间
 	time_t current_time = 0;			//当前时间
@@ -227,25 +262,25 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 	static u8 y_m_d_matched = 0;		//年月日匹配成功标志 bit2 = 1年 bit1 = 1月 bit0 = 1日
 	static u8 y_m_d_effective_next = 0;	//年月日有效标志 bit2 = 1年有效 bit1 = 1月有效 bit0 = 1日有效
 	static u8 y_m_d_matched_next = 0;	//年月日匹配成功标志 bit2 = 1年 bit1 = 1月 bit0 = 1日
-	
+
 	static u8 appointment_control_valid = 0;	//预约控制生效标志
 	static u8 appointment_control_valid_c = 0;	//预约控制生效标志 比较
 	static u8 appointment_control_valid_r = 0;	//预约控制生效标志 刷新
 
 	pControlStrategy tmp_strategy = NULL;
-	
+
 	appointment_control_valid = CheckAppointmentControlValid();		//查看预约控制是否生效
-	
+
 	if(appointment_control_valid_c != appointment_control_valid)	//预约控制状态有变化
 	{
 		appointment_control_valid_c = appointment_control_valid;
-		
+
 		appointment_control_valid_r = 1;
 	}
 
-	if(NeedUpdateStrategyList == 1 || 
+	if(NeedUpdateStrategyList == 1 ||
 	   appointment_control_valid_r == 1)	//需要更新策略
-	{	
+	{
 		NeedUpdateStrategyList = 0;
 		appointment_control_valid_r = 0;
 
@@ -267,24 +302,24 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 			y_m_d_matched = 0;
 			y_m_d_effective_next = 0;
 			y_m_d_matched_next = 0;
-			
+
 			date = calendar.w_date;
 		}
 	}
 
 	xSemaphoreTake(xMutex_STRATEGY, portMAX_DELAY);
-	
+
 	if(date != calendar.w_date)		//过了一天或重新设置了时间
 	{
 		date = calendar.w_date;
-		
+
 		StrategyListStateReset(strategy_head,1);	//复位绝对时间策略状态
 	}
-	
+
 	if(*update == 1)				//开关状态有变化,由关变为开
 	{
 		*update = 0;
-		
+
 		StrategyListStateReset(strategy_head,0);	//复位所有策略状态
 	}
 

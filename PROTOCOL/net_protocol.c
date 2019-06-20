@@ -27,7 +27,7 @@ void ResetFrameStruct(u8 mode,
                       UserData_S *user_data_in)
 {
 	u8 i = 0;
-	
+
 	//控制域
 	memset(control_msg_in->terminal_id,0,7);				//终端ID
 
@@ -69,7 +69,7 @@ void ResetFrameStruct(u8 mode,
 
 		user_data_in->AUX.Tp.PFC = 0;						//启动帧帧序号计数器
 	}
-	
+
 	for(i = 0; i < MAX_PNFN_NUM; i ++)						//清空数据单元标识和数据单元
 	{
 		user_data_in->data_unit[i].pn_fn.pn = 0;
@@ -308,7 +308,7 @@ u16 CombineCompleteFrame(u8 prm, u8 *outbuf)
 	*(outbuf + ret + 2) = 0x16;					//填充报文结束符
 
 	ret += 3;									//报文头+控制域+用户数据域+CRC+结束符的长度
-	
+
 	for(i = 0; i < user_data_out.num; i ++)		//释放掉输出数据单元的内存
 	{
 		if(user_data_out.data_unit[i].len != 0)
@@ -325,36 +325,36 @@ u16 CombineCompleteFrame(u8 prm, u8 *outbuf)
 u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 {
 	u16 ret = 0;
-	
+
 	user_data_sign_out.AFN = afn;
 	user_data_out.num = 1;
 	user_data_out.data_unit[0].pn_fn.pn = 0;
 	user_data_out.data_unit[0].pn_fn.fn = fn;
-	
+
 	switch(fn)
 	{
 		case 1:		//登录
 			user_data_out.data_unit[0].len = 28;
 			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
-		
+
 			memcpy(user_data_out.data_unit[0].msg + 0, DeviceInfo.iccid,20);
 			memcpy(user_data_out.data_unit[0].msg + 20,DeviceInfo.protocol_ver,8);
 		break;
-		
+
 		case 2:		//退出登录
 			user_data_out.data_unit[0].len = 0;
 			user_data_out.data_unit[0].msg = NULL;
 		break;
-		
+
 		case 3:		//心跳
 			user_data_out.data_unit[0].len = 0;
 			user_data_out.data_unit[0].msg = NULL;
 		break;
-		
+
 		case 13:
 			user_data_out.data_unit[0].len = 4;
 			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
-		
+
 			*(user_data_out.data_unit[0].msg + 0) = (u8)(FrameWareState.total_bags & 0x00FF);
 			*(user_data_out.data_unit[0].msg + 1) = (u8)(FrameWareState.total_bags >> 8);
 			*(user_data_out.data_unit[0].msg + 2) = (u8)(FrameWareState.current_bag_cnt & 0x00FF);
@@ -362,9 +362,9 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 		default:
 		break;
 	}
-	
+
 	ret = CombineCompleteFrame(1,outbuf);
-	
+
 	return ret;
 }
 
@@ -394,7 +394,7 @@ void CombineDataUnitSign(u8 da1,u8 da2,u8 dt1,u8 dt2,u16 *pn,u16 *fn)
 	{
 		i = 0;
 	}
-	
+
 	*pn = da2 * 8 + i;
 
 	if(dt2 >= 1 && dt1 == 0)
@@ -418,7 +418,7 @@ void CombineDataUnitSign(u8 da1,u8 da2,u8 dt1,u8 dt2,u16 *pn,u16 *fn)
 	{
 		i = 0;
 	}
-	
+
 	*fn = dt2 * 8 + i;
 }
 
@@ -851,12 +851,12 @@ u16 UserDataUnitHandle(void)
 			for(i = 0; i < unit_num; i ++)
 			{
 				msg = user_data_in.data_unit[i].msg;
-				
+
 				if(LogInOutState == 0x00)
 				{
 					LogInOutState = 0x01;				//登录腾明平台成功
 				}
-				
+
 				switch(user_data_in.data_unit[i].pn_fn.fn)
 				{
 					case 1:
@@ -1101,7 +1101,7 @@ u16 UserDataUnitHandle(void)
 							                            LAMPS_PARA_ADD + k * LAMPS_PARA_LEN,
 							                            LAMPS_PARA_LEN - 2);	//将数据写入EEPROM
 						}
-						
+
 						NeedUpdateStrategyList = 1;		//需要更新策略列表
 
 						user_data_out.data_unit[i].pn_fn.fn = 1;
@@ -1128,7 +1128,7 @@ u16 UserDataUnitHandle(void)
 						}
 
 						NeedUpdateStrategyList = 1;		//需要更新策略列表
-						
+
 						user_data_out.data_unit[i].pn_fn.fn = 1;
 					break;
 
@@ -1167,7 +1167,7 @@ u16 UserDataUnitHandle(void)
 						}
 
 						NeedUpdateStrategyList = 1;		//需要更新策略列表
-						
+
 						user_data_out.data_unit[i].pn_fn.fn = 1;
 					break;
 
@@ -1188,7 +1188,7 @@ u16 UserDataUnitHandle(void)
 //							AppointmentControl.run_mode[k].lamps_id 				= ((((u16)(*(msg + k * 4 + 1))) << 8) + (u16)(*(msg + k * 4 + 0)));
 //							AppointmentControl.run_mode[k].initial_brightness 		= *(msg + k * 4 + 2);
 //							AppointmentControl.run_mode[k].energy_saving_mode_id 	= *(msg + k * 4 + 3);
-							
+
 							AppointmentControl.run_mode[k].lamps_id 				= ((((u16)(*(msg + k * 4 + 1))) << 8) + (u16)(*(msg + k * 4 + 0)));
 							AppointmentControl.run_mode[k].initial_brightness 		= 100;
 							AppointmentControl.run_mode[k].energy_saving_mode_id 	= *(msg + k * 4 + 2);
@@ -1244,7 +1244,7 @@ u16 UserDataUnitHandle(void)
 						RemoteControl.control_type	= *(msg + 0);
 						RemoteControl.brightness	= *(msg + 1);
 						RemoteControl.lock = 1;
-					
+
 						CurrentControl.lamps_id 	= RemoteControl.lamps_id;
 						CurrentControl.control_type = RemoteControl.control_type;
 						CurrentControl.brightness 	= RemoteControl.brightness;
@@ -1254,19 +1254,20 @@ u16 UserDataUnitHandle(void)
 					case 31:
 						SyncTime.enable = 1;
 						memcpy(SyncTime.date_time,msg,6);
-						
+
 						temp_buf[0] = (SyncTime.date_time[5] >> 4) * 10 + (SyncTime.date_time[5] & 0x0F);				//年
 						temp_buf[1] = ((SyncTime.date_time[4] >> 4) & 0x01) * 10 + (SyncTime.date_time[4] & 0x0F);		//月
 						temp_buf[2] = (SyncTime.date_time[3] >> 4) * 10 + (SyncTime.date_time[3] & 0x0F);				//日
 						temp_buf[3] = (SyncTime.date_time[2] >> 4) * 10 + (SyncTime.date_time[2] & 0x0F);				//时
 						temp_buf[4] = (SyncTime.date_time[1] >> 4) * 10 + (SyncTime.date_time[1] & 0x0F);				//分
 						temp_buf[5] = (SyncTime.date_time[0] >> 4) * 10 + (SyncTime.date_time[0] & 0x0F);				//秒
-					
+
 						memcpy(&temp_buf[6],CalendarClock,6);
-					
+
 						RTC_Set(temp_buf[0] + 2000,temp_buf[1],temp_buf[2],temp_buf[3],temp_buf[4],temp_buf[5]);
-					
-						CheckEventsEC28(&temp_buf[6],CalendarClock);
+#ifdef EVENT_RECORD
+						CheckEventsEC28(&temp_buf[6],CalendarClock);	//记录校时实践
+#endif
 					break;
 				}
 			}
@@ -1344,7 +1345,7 @@ u16 UserDataUnitHandle(void)
 							msg = msg + 1;
 							temp4[j] = nbiot_atoi((char *)temp_buf,strlen((char *)temp_buf));
 						}
-						
+
 						memcpy(user_data_out.data_unit[i].msg + 0,temp4,4);
 
 						msg = ServerInfo.port1;
@@ -1382,7 +1383,7 @@ u16 UserDataUnitHandle(void)
 							msg = msg + 1;
 							temp4[j] = nbiot_atoi((char *)temp_buf,strlen((char *)temp_buf));
 						}
-						
+
 						memcpy(user_data_out.data_unit[i].msg + 118,temp4,4);
 
 						msg = ServerInfo.port2;
@@ -1549,7 +1550,7 @@ u16 UserDataUnitHandle(void)
 									*(user_data_out.data_unit[i].msg + 1 + k * 4 + 1) = (u8)(LampsRunMode.run_mode[j].lamps_id >> 8);		//填写灯具序号
 									*(user_data_out.data_unit[i].msg + 1 + k * 4 + 2) = LampsRunMode.run_mode[j].initial_brightness;		//灯具初始调光值
 									*(user_data_out.data_unit[i].msg + 1 + k * 4 + 3) = LampsRunMode.run_mode[j].energy_saving_mode_id;		//节能模式编号
-									
+
 									j = 0xFF;			//找到序号为temp3的灯具成功标志
 								}
 							}
@@ -1613,7 +1614,7 @@ u16 UserDataUnitHandle(void)
 //								*(user_data_out.data_unit[i].msg + 14 + k * 4 + 1) = (u8)(AppointmentControl.run_mode[k].lamps_id & 0x00FF);
 //								*(user_data_out.data_unit[i].msg + 14 + k * 4 + 2) = AppointmentControl.run_mode[k].initial_brightness;
 //								*(user_data_out.data_unit[i].msg + 14 + k * 4 + 3) = AppointmentControl.run_mode[k].energy_saving_mode_id;
-								
+
 								*(user_data_out.data_unit[i].msg + 14 + k * 3 + 0) = (u8)(AppointmentControl.run_mode[k].lamps_id >> 8);
 								*(user_data_out.data_unit[i].msg + 14 + k * 3 + 1) = (u8)(AppointmentControl.run_mode[k].lamps_id & 0x00FF);
 								*(user_data_out.data_unit[i].msg + 14 + k * 3 + 2) = AppointmentControl.run_mode[k].energy_saving_mode_id;
@@ -2191,7 +2192,7 @@ u16 UserDataUnitHandle(void)
 			{
 				case 9:		//FTP服务器信息
 					user_data_sign_out.AFN = 0x00;
-				
+
 					GetIpAdderssFromMemory(&FTP_ServerInfo.ip1,msg + 0);
 					GetPortFromMemory(&FTP_ServerInfo.port1,msg + 4);
 					GetIpAdderssFromMemory(&FTP_ServerInfo.ip2,msg + 6);
@@ -2242,7 +2243,7 @@ u16 UserDataUnitHandle(void)
 
 				case 12:		//FTP固件信息
 					user_data_sign_out.AFN = 0x10;
-					
+
 					memset(temp_buf,0,64);
 					memcpy(temp_buf,msg + 0,30);
 					GetMemoryForSpecifyPointer(&FTP_FrameWareInfo.name,strlen((char *)temp_buf), temp_buf);
@@ -2263,7 +2264,7 @@ u16 UserDataUnitHandle(void)
 					user_data_out.data_unit[0].len = 2;
 					user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
 
-					if(FTP_FrameWareInfo.length > FIRMWARE_SIZE)	//固件要小于240K = ((512 - 32) / 2) * 1024 = 245760 32K为BootLoader存储区域
+					if(FTP_FrameWareInfo.length > FIRMWARE_SIZE)	//固件要小于244K = ((512 - 24) / 2) * 1024 = FIRMWARE_SIZE 24K为BootLoader存储区域
 					{
 						*(user_data_out.data_unit[0].msg + 0) = 0;
 						*(user_data_out.data_unit[0].msg + 1) = 2;
@@ -2277,30 +2278,30 @@ u16 UserDataUnitHandle(void)
 					{
 						u16 page_num = 0;
 //						u8 start_page = 0;
-						
+
 						FrameWareState.state 			= FIRMWARE_DOWNLOADING;
-						FrameWareState.total_bags 		= FTP_FrameWareInfo.length % FIRMWARE_BAG_SIZE != 0 ? 
+						FrameWareState.total_bags 		= FTP_FrameWareInfo.length % FIRMWARE_BAG_SIZE != 0 ?
 						                                  FTP_FrameWareInfo.length / FIRMWARE_BAG_SIZE + 1 : FTP_FrameWareInfo.length / FIRMWARE_BAG_SIZE;
 						FrameWareState.current_bag_cnt 	= 1;
 						FrameWareState.bag_size 		= FIRMWARE_BAG_SIZE;
-						FrameWareState.last_bag_size 	= FTP_FrameWareInfo.length % FIRMWARE_BAG_SIZE != 0 ? 
+						FrameWareState.last_bag_size 	= FTP_FrameWareInfo.length % FIRMWARE_BAG_SIZE != 0 ?
 						                                  FTP_FrameWareInfo.length % FIRMWARE_BAG_SIZE : FIRMWARE_BAG_SIZE;
 						FrameWareState.total_size 		= FTP_FrameWareInfo.length;
-						
+
 						WriteFrameWareStateToEeprom();	//将固件升级状态写入EEPROM
-						
+
 //						start_page = (FIRMWARE_BUCKUP_FLASH_BASE_ADD - 0x08000000) / 2048;				//得到备份区的起始扇区
 						page_num = (FIRMWARE_MAX_FLASH_ADD - FIRMWARE_BUCKUP_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
-						
+
 						FLASH_Unlock();						//解锁FLASH
-						
+
 						for(i = 0; i < page_num; i ++)
 						{
 							FLASH_ErasePage(i * 2048 + FIRMWARE_BUCKUP_FLASH_BASE_ADD);	//擦除当前FLASH扇区
 						}
-						
+
 						FLASH_Lock();						//上锁
-						
+
 						*(user_data_out.data_unit[0].msg + 0) = 1;
 						*(user_data_out.data_unit[0].msg + 1) = 0;
 					}
@@ -2309,50 +2310,50 @@ u16 UserDataUnitHandle(void)
 				case 13:
 					user_data_out.num = 0;
 					user_data_sign_out.AFN = 0xFF;		//不需要给服务器回复ACK
-				
+
 					temp2 = ((((u16)(*(msg + 1))) << 8) + (u16)(*(msg + 0)));		//总分包数
 					temp3 = ((((u16)(*(msg + 3))) << 8) + (u16)(*(msg + 2)));		//当前分包数
 					temp6 = ((((u16)(*(msg + 5))) << 8) + (u16)(*(msg + 4)));		//包大小
-				
+
 					if(temp2 != FrameWareState.total_bags)	//总包数匹配错误
 					{
 						break;
 					}
 
 					msg += 6;
-				
+
 					crc_read = (((u16)(*(msg + temp6 - 2))) << 8) + (u16)(*(msg + temp6 - 1));
-				
+
 					crc_cal = CRC16(msg,temp6 - 2,1);
-				
+
 					if(crc_cal == crc_read)
 					{
 						if(temp3 == FrameWareState.current_bag_cnt)
 						{
 							FLASH_Unlock();						//解锁FLASH
-							
+
 							if(temp6 == FIRMWARE_BAG_SIZE)
 							{
 								for(i = 0; i < (FIRMWARE_BAG_SIZE - 2) / 2; i ++)
 								{
 									temp7 = ((u16)(*(msg + i * 2 + 1)) << 8) + (u16)(*(msg + i * 2));
-									
+
 									FLASH_ProgramHalfWord(FIRMWARE_BUCKUP_FLASH_BASE_ADD + (temp3 - 1) * (FIRMWARE_BAG_SIZE - 2) + i * 2,temp7);
 								}
 							}
-							
+
 							FLASH_Lock();						//上锁
-							
+
 							if(temp3 < FrameWareState.total_bags)
 							{
 								FrameWareState.current_bag_cnt ++;
-								
+
 								FrameWareState.state = FIRMWARE_DOWNLOADING;	//当前包下载完成
 							}
 							else if(temp3 == FrameWareState.total_bags)
 							{
 								FrameWareState.state = FIRMWARE_DOWNLOADED;		//全部下载完成
-								
+
 								WriteFrameWareStateToEeprom();
 							}
 						}
@@ -2486,7 +2487,7 @@ u16 NetDataFrameHandle(u8 *inbuf,u16 inbuf_len,u8 *outbuf)
 		return 0;
 	}
 
-	if(MyStrstr(DeviceBaseInfo.mail_add, control_msg_in.terminal_id, 8, 8) == 0xFFFF && 
+	if(MyStrstr(DeviceBaseInfo.mail_add, control_msg_in.terminal_id, 8, 8) == 0xFFFF &&
 	   MyStrstr(default_mail_id, control_msg_in.terminal_id, 8, 8) == 0xFFFF)	//判断8位设备ID(通信地址)
 	{
 		return 0;

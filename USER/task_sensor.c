@@ -41,7 +41,7 @@ void vTaskSENSOR(void *pvParameters)
 //		delay_ms(500);
 //		InventrOutPutVoltage = InventrGetOutPutVoltage();	//读取电源输出电压
 //		delay_ms(300);
-		InputCurrent 	= Att7059xGetCurrent1();
+//		InputCurrent 	= Att7059xGetCurrent1();
 		delay_ms(300);
 		InputVoltage 	= Att7059xGetVoltage();
 		delay_ms(300);

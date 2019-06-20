@@ -41,8 +41,8 @@ int main(void)
 	UART4_Init(9600);
 
 	__set_PRIMASK(0);	//开启全局中断
-	
-//	AT24CXX_WriteOneByte(EC1_ADD,0);
+
+	AT24CXX_WriteOneByte(EC1_ADD,0);
 
 //	for(i = 0; i < 256; i ++)
 //	{
@@ -55,7 +55,7 @@ int main(void)
 //	AT24CXX_WriteOneByte(UU_ID_ADD,255);
 
 //	AT24CXX_WriteLenByte(E_FW_UPDATE_STATE_ADD + E_FW_UPDATE_STATE_LEN - 2,0xFFFF,2);	//恢复OTA状态信息
-	
+
 	mem_init();
 
 	IWDG_Feed();				//喂看门狗
