@@ -10,12 +10,16 @@ TaskHandle_t xHandleTaskNET = NULL;
 SensorMsg_S *p_tSensorMsgNet = NULL;			//用于装在传感器数据的结构体变量
 unsigned portBASE_TYPE NET_Satck;
 
+u32 LoginStaggeredPeakInterval = 0;				//登录信息错峰后周期
+u32 UploadDataStaggeredPeakInterval = 0;		//数据上报错峰后周期
+u32 HeartBeatStaggeredPeakInterval = 0;			//心跳上报错峰后周期
+
 CONNECT_STATE_E ConnectState = UNKNOW_STATE;	//连接状态
 
 nbiot_device_t *dev = NULL;
 
 nbiot_value_t LinkLayerDownPacketCarrier;			//数据链路层数据包载体 Opaque  3200 0 5501
-nbiot_value_t LinkLayerUpPacketCarrier;			//数据链路层数据包载体 Opaque  3200 0 5505
+nbiot_value_t LinkLayerUpPacketCarrier;				//数据链路层数据包载体 Opaque  3200 0 5505
 
 void write_callback( uint16_t       objid,
                      uint16_t       instid,
@@ -53,7 +57,16 @@ void execute_callback( uint16_t       objid,
 	u8 hex_buf_in[512];
 	u8 hex_buf_out[512];
 	char str_buf[1024];
+
+//	u8 *hex_buf_in;
+//	u8 *hex_buf_out;
+//	char *str_buf;
+
 	u16 len = 0;
+
+//	hex_buf_in = (u8 *)mymalloc(sizeof(u8) * 1024);
+//	hex_buf_out = (u8 *)mymalloc(sizeof(u8) * 1024);
+//	str_buf = (char *)mymalloc(sizeof(char) * 1024);
 
 #ifdef DEBUG_LOG
     printf( "execute /%d/%d/%d\r\n",objid,instid,resid );
@@ -69,7 +82,7 @@ void execute_callback( uint16_t       objid,
 
 		len = NetDataFrameHandle(hex_buf_in,size / 2,hex_buf_out);
 
-		if(len != 0)
+		if(len >= 1 && len <= 512)
 		{
 			HexToStr((char *)str_buf, hex_buf_out,len);
 
@@ -82,36 +95,96 @@ void execute_callback( uint16_t       objid,
 	}
 }
 
-void res_update(u8 afn,u8 fn,time_t interval,u8 *immediately)
+void res_update(void)
 {
-	static time_t last_time = 0;
-	static time_t cur_time = 0;
+	static time_t times_sec = 0;
+	static u16 download_time_out = 0;
+	static u8  download_failed_times = 0;
 	u8 buf[64];
 	char str_buf[128];
+	u8 afn = 0;
+	u8 fn = 0;
 	u16 len = 0;
 
-	if(cur_time >= last_time + interval)
+	if(LogInOutState == 0x00)		//未登录，发送登陆数据包
 	{
-		cur_time = 0;
-		last_time = 0;
+		if(times_sec == 0)
+		{
+			times_sec = GetSysTick1s();
+		}
+
+		if(GetSysTick1s() - times_sec >= LoginStaggeredPeakInterval)
+		{
+			times_sec = GetSysTick1s();
+
+			if(UpCommPortPara.random_peak_staggering_time != 0)		//使用随机错峰时间
+			{
+				LoginStaggeredPeakInterval = rand() % UpCommPortPara.random_peak_staggering_time;
+			}
+			else													//使用固定错峰时间
+			{
+				LoginStaggeredPeakInterval = UpCommPortPara.specify_peak_staggering_time;
+			}
+
+			afn = 0x02;
+			fn = 1;
+
+			LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
+		}
+	}
+	else if(GetSysTick1s() - times_sec >= HeartBeatStaggeredPeakInterval)
+	{
+		times_sec = GetSysTick1s();
+
+		if(UpCommPortPara.random_peak_staggering_time != 0)		//使用随机错峰时间
+		{
+			HeartBeatStaggeredPeakInterval = UpCommPortPara.heart_beat_cycle * 60 + rand() % UpCommPortPara.random_peak_staggering_time;
+		}
+		else													//使用固定错峰时间
+		{
+			HeartBeatStaggeredPeakInterval = UpCommPortPara.heart_beat_cycle * 60 + UpCommPortPara.specify_peak_staggering_time;
+		}
+
+		afn = 0x02;
+		fn = 3;
 
 		LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
 	}
-	else if(cur_time == 0 && last_time == 0)
+	else if(EventRecordList.important_event_flag != 0)
 	{
-		cur_time = nbiot_time();
-		last_time = cur_time;
+//		EventRecordList.important_event_flag = 0;
+		
+		afn = 0x0E;
+		fn = 2;
+		
+		LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
 	}
-	else
+	else if(FrameWareState.state == FIRMWARE_DOWNLOADING)
 	{
-		cur_time = nbiot_time();
-	}
+		times_sec = GetSysTick1s();
 
-	if(fn == 1 && *immediately == 1)
-	{
-		*immediately = 0;
+		download_time_out = 0;											//固件包等待超时
+		download_failed_times = 0;										//固件包下载失败次数
+		FrameWareState.state = FIRMWARE_DOWNLOAD_WAIT;					//等待当前固件包
+
+		afn = 0x10;
+		fn = 13;
 
 		LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
+	}
+	else if(FrameWareState.state == FIRMWARE_DOWNLOAD_WAIT)
+	{
+		if((download_time_out ++) >= 250)
+		{
+			if((download_failed_times ++) >= 15)
+			{
+				FrameWareState.state = FIRMWARE_DOWNLOAD_FAILED;	//判定为固件下载失败
+			}
+			else
+			{
+				FrameWareState.state = FIRMWARE_DOWNLOADING;		//重新下载当前固件包
+			}
+		}
 	}
 
 	if((LinkLayerUpPacketCarrier.flag & NBIOT_UPDATED) != (u32)0x00)	//有数据需要发送
@@ -207,7 +280,7 @@ u8 SyncDataTimeFormBcxxModule(time_t sync_cycle)
 	if((GetSysTick1s() - time_c >= sync_cycle) || GetTimeOK != 1)
 	{
 		time_c = GetSysTick1s();
-		
+
 		memset(buf,0,32);
 
 		if(m53xx_get_AT_CCLK(buf))
@@ -238,24 +311,25 @@ u8 SyncDataTimeFormBcxxModule(time_t sync_cycle)
 void vTaskNET(void *pvParameters)
 {
 	int ret = 0;
-	u8 afn = 0;
-	u8 fn = 0;
-	u8 immediately = 0;
-	u16 time_out = 0;
 	u16 off_line_time_out = 0;
-	u16 download_time_out = 0;
-	u8  download_failed_times = 0;
 	time_t sync_csq_time = nbiot_time();
 
 	GetTimeOK = GetRTC_State();		//获取RTC实时时钟状态
 
 	p_tSensorMsgNet = (SensorMsg_S *)mymalloc(sizeof(SensorMsg_S));
 
-	RE_INIT_M53XX:
+	if(UpCommPortPara.random_peak_staggering_time != 0)		//使用随机错峰时间
+	{
+		LoginStaggeredPeakInterval 		= rand() % UpCommPortPara.random_peak_staggering_time;
+		HeartBeatStaggeredPeakInterval 	= UpCommPortPara.heart_beat_cycle * 60 	+ rand() % UpCommPortPara.random_peak_staggering_time;
+	}
+	else													//使用固定错峰时间
+	{
+		LoginStaggeredPeakInterval 		= UpCommPortPara.specify_peak_staggering_time;
+		HeartBeatStaggeredPeakInterval 	= UpCommPortPara.heart_beat_cycle * 60 	+ UpCommPortPara.specify_peak_staggering_time;
+	}
 
-	immediately = 1;
-	download_time_out = 0;
-	download_failed_times = 0;
+	RE_INIT_M53XX:
 	nbiot_init_environment();
 
 	ret = create_device();					//创建设备
@@ -351,49 +425,7 @@ void vTaskNET(void *pvParameters)
 					goto RE_INIT_M53XX;
 				}
 
-				if(LogInOutState == 0x00)		//未登录，发送登陆数据包
-				{
-					afn = 0x02;
-					fn = 1;
-					time_out = UpCommPortPara.wait_slave_rsp_timeout;
-				}
-				else if(LogInOutState == 0x01)	//已登录，发送心跳数据包
-				{
-					if(FrameWareState.state == FIRMWARE_DOWNLOADING)
-					{
-						afn = 0x10;
-						fn = 13;
-						time_out = 0;
-
-						download_time_out = 0;											//固件包等待超时
-						download_failed_times = 0;										//固件包下载失败次数
-
-						FrameWareState.state = FIRMWARE_DOWNLOAD_WAIT;					//等待当前固件包
-					}
-					else
-					{
-						afn = 0x02;
-						fn = 3;
-						time_out = UpCommPortPara.heart_beat_cycle * 60;
-
-						if(FrameWareState.state == FIRMWARE_DOWNLOAD_WAIT)
-						{
-							if((download_time_out ++) >= 300)
-							{
-								if((download_failed_times ++) >= 15)
-								{
-									FrameWareState.state = FIRMWARE_DOWNLOAD_FAILED;	//判定为固件下载失败
-								}
-								else
-								{
-									FrameWareState.state = FIRMWARE_DOWNLOADING;		//重新下载当前固件包
-								}
-							}
-						}
-					}
-				}
-
-				res_update(afn,fn,time_out,&immediately);	//向服务器发送数据包
+				res_update();	//向服务器发送数据包
 			}
 		}
 

@@ -3,8 +3,8 @@
 #include "stdio.h"	
 #include "sys.h" 
 
-#define Usart1RxLen	256	
-#define Usart1TxLen	256
+#define Usart1RxLen	32	
+#define Usart1TxLen	180
 
 #define Usart2RxLen	64	
 #define Usart2TxLen	64

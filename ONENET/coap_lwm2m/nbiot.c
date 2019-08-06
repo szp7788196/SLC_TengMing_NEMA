@@ -40,7 +40,9 @@ int nbiot_device_create( nbiot_device_t         **dev,
     tmp->read_func = read_func;
     tmp->execute_func = execute_func;
 
-    init_miplconf(life_time,NULL,NULL);
+	mipl_generate();
+	
+//    init_miplconf(life_time,NULL,NULL);
 
     return NBIOT_ERR_OK;
 }
@@ -668,6 +670,7 @@ static void nbiot_handle_buffer( nbiot_device_t *dev,
 int nbiot_device_connect( nbiot_device_t *dev,
                               int         timeout )
 {
+	int err = COAP_NO_ERROR;
     int ret;
     time_t last;
     time_t curr;
@@ -699,10 +702,19 @@ int nbiot_device_connect( nbiot_device_t *dev,
 
         curr = nbiot_time();
 
-	    nbiot_transaction_step( dev,
-                                curr,
-                                buffer,
-                                sizeof(buffer) );
+		
+		err = nbiot_transaction_step( dev,
+									curr,
+									buffer,
+									sizeof(buffer));
+			
+		if(err != NBIOT_ERR_OK)
+		{
+			err = COAP_INTERNAL_SERVER_ERROR_500;
+			
+			return err;
+		}
+		
         /* ok */
         if ( dev->state == STATE_REGISTERED )
         {
@@ -778,6 +790,7 @@ void nbiot_device_close( nbiot_device_t *dev,
 int nbiot_device_step( nbiot_device_t *dev,
                        int             timeout )
 {
+	int err = COAP_NO_ERROR;
     time_t last;
     time_t curr;
     uint8_t buffer[NBIOT_SOCK_BUF_SIZE];
@@ -800,10 +813,15 @@ int nbiot_device_step( nbiot_device_t *dev,
 
         curr = nbiot_time();
 
-        nbiot_register_step( dev,
+        err = nbiot_register_step( dev,
                              curr,
                              buffer,
                              sizeof(buffer));
+		
+		if(err == COAP_INTERNAL_SERVER_ERROR_500)
+		{
+			return COAP_INTERNAL_SERVER_ERROR_500;
+		}
 
 		if (  dev->state == STATE_REGISTERED ||
 		      dev->state == STATE_REG_UPDATE_NEEDED ||
@@ -812,10 +830,17 @@ int nbiot_device_step( nbiot_device_t *dev,
 		      dev->state ==STATE_REG_PENDING ||
 		      dev->state ==STATE_REG_FAILED  )
 		{
-			nbiot_transaction_step( dev,
+			err = nbiot_transaction_step( dev,
 									curr,
 									buffer,
 									sizeof(buffer));
+			
+			if(err != NBIOT_ERR_OK)
+			{
+				err = COAP_INTERNAL_SERVER_ERROR_500;
+				
+				return err;
+			}
 		}
 		if ( dev->state == STATE_REGISTERED||dev->state == STATE_REG_UPDATE_PENDING||dev->state == STATE_REG_UPDATE_NEEDED )
 		{

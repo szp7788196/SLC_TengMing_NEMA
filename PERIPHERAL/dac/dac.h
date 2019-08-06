@@ -5,7 +5,7 @@
 
 
 
-#define DAC_MAX_VOLATGE		2.75f
+#define DAC_MAX_VOLATGE		2.6f
 
 void DAC1_Init(void);
 void Dac1SetOutPutVoltage(float vol);

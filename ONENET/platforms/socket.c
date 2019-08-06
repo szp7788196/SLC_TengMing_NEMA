@@ -66,6 +66,8 @@ void output_buffer( uint8_t *buffer, int length )
 int nbiot_udp_send( const void   *buff,
                     size_t       size)
 {
+	int err = 0;
+	
 	if (NULL == buff)
 	{
 		return NBIOT_ERR_BADPARAM;
@@ -77,7 +79,15 @@ int nbiot_udp_send( const void   *buff,
 	printf("%s\r\n",buff);
 #endif
 
-	ip_SendData((int8_t *)buff,size);
+	err = ip_SendData((int8_t *)buff,size);
+	
+	if(err != 1)
+	{
+		if(err == 2)
+		{
+			return NBIOT_ERR_ERROR;
+		}
+	}
 
 	return NBIOT_ERR_OK;
 }

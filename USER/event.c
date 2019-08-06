@@ -9,7 +9,10 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 	u16 add_pos = 0;
 	u8 buf[24];
 
-	xSemaphoreTake(xMutex_EVENT_RECORD, portMAX_DELAY);
+	if(xSchedulerRunning == 1)
+	{
+		xSemaphoreTake(xMutex_EVENT_RECORD, portMAX_DELAY);
+	}
 
 	add_pos = E_IMPORTEAT_ADD;
 
@@ -21,14 +24,14 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 	memcpy(buf + 2,CalendarClock,6);	//发生时间
 	memcpy(buf + 8,msg,len);			//具体事件内容
 
-	crc_cal = CRC16(buf,22,1);			//计算校验
+	crc_cal = GetCRC16(buf,22);			//计算校验
 
 	buf[22] = (u8)(crc_cal >> 8);
 	buf[23] = (u8)(crc_cal & 0x00FF);
 
 	EventRecordList.lable1[EventRecordList.ec1] = ecx;	//更新事件列表
 
-	crc_cal = CRC16(EventRecordList.lable1,256,1);
+	crc_cal = GetCRC16(EventRecordList.lable1,256);
 
 	AT24CXX_WriteOneByte(EC1_LABLE_ADD + EventRecordList.ec1,EventRecordList.lable1[EventRecordList.ec1]);
 	AT24CXX_WriteOneByte(EC1_LABLE_ADD + 256,(u8)(crc_cal >> 8));
@@ -40,7 +43,12 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 
 	WriteDataFromMemoryToEeprom(&EventRecordList.ec1,EC1_ADD, 1);
 
-	xSemaphoreGive(xMutex_EVENT_RECORD);
+	EventRecordList.important_event_flag ++;
+
+	if(xSchedulerRunning == 1)
+	{
+		xSemaphoreGive(xMutex_EVENT_RECORD);
+	}
 }
 
 //检测正常开灯事件
@@ -49,7 +57,16 @@ void CheckEventsEC15(RemoteControl_S ctrl)
 	static RemoteControl_S control;
 	static time_t cnt = 0;
 	static u8 state_change = 0;
+	static u8 first = 1;
 	u8 buf[6];
+
+	if(first == 1)
+	{
+		first = 0;
+
+		control.control_type = 1;
+		control.brightness = 0;
+	}
 
 	if(LampsParameters.num != 0)		//有已经配置过的灯
 	{
@@ -94,22 +111,15 @@ void CheckEventsEC15(RemoteControl_S ctrl)
 							buf[4] = 0x00;		//失败灯号
 							buf[5] = 0x00;
 						}
-						
+
 						RecordEventsECx(EVENT_ERC15,6,buf);
-					}
-					else
-					{
-						control.control_type = ctrl.control_type;
-						control.brightness = ctrl.brightness;
-						control.interface = ctrl.interface;
+
 					}
 				}
-				else
-				{
-					control.control_type = ctrl.control_type;
-					control.brightness = ctrl.brightness;
-					control.interface = ctrl.interface;
-				}
+
+				control.control_type = ctrl.control_type;
+				control.brightness = ctrl.brightness;
+				control.interface = ctrl.interface;
 			}
 		}
 		else
@@ -126,7 +136,16 @@ void CheckEventsEC16(RemoteControl_S ctrl)
 	static RemoteControl_S control;
 	static time_t cnt = 0;
 	static u8 state_change = 0;
+	static u8 first = 1;
 	u8 buf[6];
+
+	if(first == 1)
+	{
+		first = 0;
+
+		control.control_type = 1;
+		control.brightness = 0;
+	}
 
 	if(LampsParameters.num != 0)		//有已经配置过的灯
 	{
@@ -145,8 +164,8 @@ void CheckEventsEC16(RemoteControl_S ctrl)
 				cnt = 0;
 				state_change = 0;
 
-				if(control.control_type == 1 ||
-				  (control.control_type == 2 && control.brightness == 0))	//上个状态为开灯
+				if(control.control_type == 0 ||
+				  (control.control_type == 2 && control.brightness >= 1))	//上个状态为开灯
 				{
 					if(ctrl.control_type == 1 ||
 					  (ctrl.control_type == 2 && ctrl.brightness > 0))		//现在状态为关灯
@@ -171,22 +190,14 @@ void CheckEventsEC16(RemoteControl_S ctrl)
 							buf[4] = 0x00;		//失败灯号
 							buf[5] = 0x00;
 						}
-						
+
 						RecordEventsECx(EVENT_ERC16,6,buf);
 					}
-					else
-					{
-						control.control_type = ctrl.control_type;
-						control.brightness = ctrl.brightness;
-						control.interface = ctrl.interface;
-					}
 				}
-				else
-				{
-					control.control_type = ctrl.control_type;
-					control.brightness = ctrl.brightness;
-					control.interface = ctrl.interface;
-				}
+
+				control.control_type = ctrl.control_type;
+				control.brightness = ctrl.brightness;
+				control.interface = ctrl.interface;
 			}
 		}
 		else
@@ -243,11 +254,11 @@ void CheckEventsEC17(RemoteControl_S ctrl)
 
 			memset(buf,0,4);
 
-			buf[0] = 0x00;														//记录类型
+			buf[0] = 0x01;														//记录类型
 			buf[1] = (u8)(LampsParameters.parameters[0].lamps_id & 0x00FF);		//灯具序号
 			buf[2] = (u8)(LampsParameters.parameters[0].lamps_id >> 8);
-			buf[3] = 0x01;														//事件开始
-			
+			buf[3] = 0x00;														//事件开始
+
 			RecordEventsECx(EVENT_ERC17,4,buf);
 		}
 		else if(cnt <= -100)
@@ -261,7 +272,7 @@ void CheckEventsEC17(RemoteControl_S ctrl)
 			buf[1] = (u8)(LampsParameters.parameters[0].lamps_id & 0x00FF);		//灯具序号
 			buf[2] = (u8)(LampsParameters.parameters[0].lamps_id >> 8);
 			buf[3] = 0x00;														//事件结束
-			
+
 			RecordEventsECx(EVENT_ERC17,4,buf);
 		}
 	}
@@ -298,7 +309,7 @@ void CheckEventsEC18(RemoteControl_S ctrl)
 						cnt --;
 					}
 				}
-				
+
 			}
 		}
 		else
@@ -314,11 +325,11 @@ void CheckEventsEC18(RemoteControl_S ctrl)
 
 			memset(buf,0,4);
 
-			buf[0] = 0x00;
+			buf[0] = 0x01;
 			buf[1] = (u8)(LampsParameters.parameters[0].lamps_id & 0x00FF);		//灯具序号
 			buf[2] = (u8)(LampsParameters.parameters[0].lamps_id >> 8);
-			buf[3] = 0x01;
-			
+			buf[3] = 0x00;
+
 			RecordEventsECx(EVENT_ERC18,4,buf);
 		}
 		else if(cnt <= -100)
@@ -332,7 +343,7 @@ void CheckEventsEC18(RemoteControl_S ctrl)
 			buf[1] = (u8)(LampsParameters.parameters[0].lamps_id & 0x00FF);		//灯具序号
 			buf[2] = (u8)(LampsParameters.parameters[0].lamps_id >> 8);
 			buf[3] = 0x00;
-			
+
 			RecordEventsECx(EVENT_ERC18,4,buf);
 		}
 	}
@@ -345,7 +356,16 @@ void CheckEventsEC19(RemoteControl_S ctrl)
 	static time_t time_cnt = 0;
 	static u8 occur = 0;
 	static s8 cnt = 0;
+	static u8 first = 1;
 	u8 buf[7];
+
+	if(first == 1)
+	{
+		first = 0;
+
+		control.control_type = 1;
+		control.brightness = 0;
+	}
 
 	if(LampsParameters.num != 0)		//有已经配置过的灯
 	{
@@ -442,7 +462,16 @@ void CheckEventsEC20(RemoteControl_S ctrl)
 	static time_t time_cnt = 0;
 	static u8 occur = 0;
 	static s8 cnt = 0;
+	static u8 first = 1;
 	u8 buf[7];
+
+	if(first == 1)
+	{
+		first = 0;
+
+		control.control_type = 1;
+		control.brightness = 0;
+	}
 
 	if(LampsParameters.num != 0)		//有已经配置过的灯
 	{

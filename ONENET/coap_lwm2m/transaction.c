@@ -77,11 +77,13 @@ int nbiot_transaction_del( nbiot_device_t *dev,
     return NBIOT_ERR_OK;
 }
 
-void nbiot_transaction_step( nbiot_device_t *dev,
+int nbiot_transaction_step( nbiot_device_t *dev,
                              time_t          now,
                              uint8_t        *buffer,
                              size_t          buffer_len )
 {
+	int err = COAP_NO_ERROR;
+	
     nbiot_transaction_t *next=NULL;
    	nbiot_transaction_t *transaction = dev->transactions;
 
@@ -107,7 +109,7 @@ void nbiot_transaction_step( nbiot_device_t *dev,
 					printf("retramit:");
 #endif
 
-					nbiot_udp_send(transaction->buffer,transaction->buffer_len);
+					err = nbiot_udp_send(transaction->buffer,transaction->buffer_len);
 
 					//  transaction->time += COAP_RESPONSE_TIMEOUT << (++transaction->counter);
 					transaction->time += COAP_RESPONSE_TIMEOUT;
@@ -129,4 +131,6 @@ void nbiot_transaction_step( nbiot_device_t *dev,
 
         transaction = next;
     }
+	
+	return err;
 }

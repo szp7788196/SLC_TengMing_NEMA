@@ -187,7 +187,7 @@ int  nbiot_deregister ( nbiot_device_t *dev,
 							size_t		   buffer_len);
 
 
-void nbiot_register_step( nbiot_device_t *dev,
+int nbiot_register_step( nbiot_device_t *dev,
                                 time_t          now,
                                 uint8_t		  *buffer,
 							    size_t		   buffer_len);
@@ -204,7 +204,7 @@ int nbiot_transaction_add( nbiot_device_t              *dev,
 int nbiot_transaction_del( nbiot_device_t *dev,
 	                         bool            succ,
                            uint16_t        mid);
-void nbiot_transaction_step( nbiot_device_t *dev,
+int nbiot_transaction_step( nbiot_device_t *dev,
                              time_t          now,
                              uint8_t        *buffer,
                              size_t          buffer_len );

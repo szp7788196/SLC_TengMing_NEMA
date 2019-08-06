@@ -12,7 +12,7 @@
 #define POWER_RATIO						0.01777947713f		//功率转换系数
 #define ELECTRIC_ENERGY_METER_CONSTANT	3200.0f				//电能表常数
 #define CURRENT_RATIO					0.01144472f			//电流转换系数
-#define VOLTAGE_RATIO					0.000184083851f		//电压转换系数
+#define VOLTAGE_RATIO					0.000196984923f		//电压转换系数
 
 
 

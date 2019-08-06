@@ -20,18 +20,18 @@ RCC_ClocksTypeDef RCC_Clocks;
 int main(void)
 {
 	SCB->VTOR = FLASH_BASE | 0x06000; 	/* Vector Table Relocation in Internal FLASH. */
-//	IWDG_Init(IWDG_Prescaler_128,1600);	//128分频 312.5HZ 625为2秒
+	IWDG_Init(IWDG_Prescaler_128,1600);	//128分频 312.5HZ 625为2秒
 
 	RCC_GetClocksFreq(&RCC_Clocks);		//查看各个总线的时钟频率
-	__set_PRIMASK(1);	//关闭全局中断
+	__set_PRIMASK(1);					//关闭全局中断
 
 	NVIC_Configuration();
+	RELAY_Init();
 	delay_init(72);
 	RTC_Init();
 	AT24CXX_Init();
 	DAC1_Init();
 	LED_Init();
-	RELAY_Init();
 	CD4051B_Init();
 	TIM2_Init(99,7199);
 	TIM5_Int_Init(2000,36 - 1);
@@ -42,7 +42,7 @@ int main(void)
 
 	__set_PRIMASK(0);	//开启全局中断
 
-	AT24CXX_WriteOneByte(EC1_ADD,0);
+//	AT24CXX_WriteOneByte(EC1_ADD,0);
 
 //	for(i = 0; i < 256; i ++)
 //	{

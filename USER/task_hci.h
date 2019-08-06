@@ -7,6 +7,7 @@
 extern TaskHandle_t xHandleTaskHCI;
 
 void vTaskHCI(void *pvParameters);
+u16 HCI_DataAnalysis(u8 *inbuf,u16 inbuf_len,u8 *outbuf);
 
 
 

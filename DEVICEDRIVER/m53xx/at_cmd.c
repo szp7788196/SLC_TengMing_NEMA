@@ -94,13 +94,13 @@ char SendCmd(char* cmd, uint8_t *result,uint16_t waittime,uint8_t retry,uint16_t
 	return 1;
 }
 
-void SentData(char* cmd, uint8_t *result,uint16_t timeout)
+char SentData(char* cmd, uint8_t *result,uint16_t timeout)
 {
-//	char *msg_p = NULL;
+	char *msg_p = NULL;
 	time_t  nowtime = 0,newtime = 0,sum = 0;
 
 	if(callback == NULL || result_ptr == NULL || flag_ok == NULL)
-		return;
+		return 0;
 
 	*flag_ok = 0;
 
@@ -114,8 +114,10 @@ void SentData(char* cmd, uint8_t *result,uint16_t timeout)
 
 	while(1)
 	{
-		if(sum > 2)
-			break;
+		if(sum > 2)	
+		{
+			return 0;
+		}
 
 		if(*flag_ok == 1)
 		{
@@ -123,14 +125,21 @@ void SentData(char* cmd, uint8_t *result,uint16_t timeout)
 #ifdef DEBUG_LOG
 			printf("data_rsp:%s\r\n",result_ptr->data);
 #endif
-			/*
-			msg_p=strstr(result_ptr->data,result);
-			if(msg_p!=NULL){
-			ringbuf_clear(result_ptr);
-			break;
-			}*/
+			
+			msg_p = strstr((char *)result_ptr->data,(char *)result);
+			if(msg_p!=NULL)
+			{
+				ringbuf_clear(result_ptr);
+				break;
+			}
+			else
+			{
+				msg_p = strstr((char *)result_ptr->data,"ERROR");
+				ringbuf_clear(result_ptr);
 
-			break;
+				if(msg_p != NULL)
+					return 2;
+			}
 		}
 		else
 		{
@@ -142,6 +151,8 @@ void SentData(char* cmd, uint8_t *result,uint16_t timeout)
 	}
 
 	nbiot_sleep(timeout);
+	
+	return 1;
 }
 
 

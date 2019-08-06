@@ -17,14 +17,14 @@ void RELAY_Init(void)
 {
 	GPIO_InitTypeDef  GPIO_InitStructure;
 
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
 
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_Init(GPIOB, &GPIO_InitStructure);
+	GPIO_Init(GPIOC, &GPIO_InitStructure);
 
-	RELAY_OFF;
+	RELAY_ON;
 }
 
 //设置恒功率最大电流
@@ -459,8 +459,7 @@ void SetLightLevel(RemoteControl_S control)
 {
 	u8 brightness = 0;
 
-	if(control.interface > INTFC_DALI ||
-	  (control.control_type == 2 && control.brightness > 100))
+	if(control.interface > INTFC_DALI)
 	{
 		return;
 	}
@@ -470,9 +469,9 @@ void SetLightLevel(RemoteControl_S control)
 	  (control.control_type == 2 && control.brightness == 0))
 	{
 		delay_ms(100);
-		
+
 		RELAY_OFF;
-		
+
 		return;
 	}
 	else
@@ -498,7 +497,7 @@ void SetLightLevel(RemoteControl_S control)
 		}
 		else
 		{
-			brightness = control.brightness;
+			brightness = (u8)(((float)control.brightness / 255.0f) * 100.0f + 0.5f);
 		}
 
 		switch(control.interface)

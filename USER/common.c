@@ -21,6 +21,7 @@ u32 SysTick1ms = 0;					//1ms滴答时钟
 u32 SysTick10ms = 0;				//10ms滴答时钟
 u32 SysTick100ms = 0;				//10ms滴答时钟
 time_t SysTick1s = 0;				//1s滴答时钟
+time_t RTCTick1s = 0;				//1s滴答时钟
 
 /***************************其他*****************************/
 u8 GetTimeOK = 0;							//成功获取时间标志
@@ -285,7 +286,7 @@ void get_date_from_days(u16 days, u8 *m, u8 *d)
 	for(i = 0; i < 12; i ++)
 	{
 		s += x[i];
-		
+
 		if(days > s && days <= s + x[i + 1])
 		{
 			*m = i + 1;
@@ -421,51 +422,11 @@ unsigned short get_str3(unsigned char *source, unsigned char *out, unsigned shor
     return length;
 }
 
-//32位CRC校验
-u32 CRC32( const u8 *buf, u32 size)
-{
-     uint32_t i, crc;
-     crc = 0xFFFFFFFF;
-     for (i = 0; i < size; i++)
-      crc = crc32tab[(crc ^ buf[i]) & 0xff] ^ (crc >> 8);
-     return crc^0xFFFFFFFF;
-}
-
-/*****************************************************
-函数：u16 CRC16(u8 *puchMsgg,u8 usDataLen)
-功能：CRC校验用函数
-参数：puchMsgg是要进行CRC校验的消息，usDataLen是消息中字节数 mode:0 低字节在前 1:高字节在前
-返回：计算出来的CRC校验码。
-*****************************************************/
-u16 CRC16(u8 *puchMsgg,u16 usDataLen,u8 mode)
-{
-	u16 ret = 0;
-    u8 uchCRCHi = 0xFF ; 											//高CRC字节初始化
-    u8 uchCRCLo = 0xFF ; 											//低CRC 字节初始化
-    u8 uIndex ; 													//CRC循环中的索引
-
-    while (usDataLen--) 											//传输消息缓冲区
-    {
-		uIndex = uchCRCLo ^ *puchMsgg++; 							//计算CRC
-		uchCRCLo = uchCRCHi ^ auchCRCHi[uIndex];
-		uchCRCHi = auchCRCLo[uIndex];
-    }
-
-	if(mode == 0)
-	{
-		ret = (((u16)uchCRCHi) << 8) + (u16)uchCRCLo;
-	}
-	else
-	{
-		ret = (((u16)uchCRCLo) << 8) + (u16)uchCRCHi;
-	}
-
-    return ret;
-}
-
 u16 GetCRC16(u8 *data,u16 len)
 {
 	u16 ax,lsb;
+	u8 temp1 = 0;
+	u8 temp2 = 0;
 	int i,j;
 
 	ax = 0xFFFF;
@@ -483,6 +444,11 @@ u16 GetCRC16(u8 *data,u16 len)
 				ax ^= 0xA001;
 		}
 	}
+	
+	temp1 = (u8)((ax >> 8) & 0x00FF);
+	temp2 = (u8)(ax & 0x00FF);
+	
+	ax = ((((u16)temp2) << 8) & 0xFF00) + (u16)temp1;
 
 	return ax;
 }
@@ -547,12 +513,22 @@ time_t GetSysTick1s(void)
 {
 	return SysTick1s;
 }
+void SetRTCTick1s(time_t sec)
+{
+	RTCTick1s = sec;
+}
+
+//获取系统1秒滴答时钟
+time_t GetRTCTick1s(void)
+{
+	return RTCTick1s;
+}
 
 //获取RTC状态
 u8 GetRTC_State(void)
 {
 	u8 ret = 0;
-	
+
 	if(calendar.w_year >= 2019)
 	{
 		if(GetTimeOK == 0)
@@ -564,7 +540,7 @@ u8 GetRTC_State(void)
 			ret = 1;
 		}
 	}
-	
+
 	return ret;
 }
 
@@ -585,7 +561,7 @@ u8 ReadDataFromEepromToMemory(u8 *buf,u16 s_add, u16 len)
 	ReadCrcCode = ReadCrcCode << 8;
 	ReadCrcCode = ReadCrcCode | (u16)(*(buf + len - 1));
 
-	CalCrcCode = CRC16(buf,len - 2,1);
+	CalCrcCode = GetCRC16(buf,len - 2);
 
 	if(ReadCrcCode == CalCrcCode)
 	{
@@ -602,7 +578,7 @@ void WriteDataFromMemoryToEeprom(u8 *inbuf,u16 s_add, u16 len)
 	u16 j = 0;
 	u16 CalCrcCode = 0;
 
-	CalCrcCode = CRC16(inbuf,len,1);
+	CalCrcCode = GetCRC16(inbuf,len);
 
 	for(i = s_add ,j = 0; i < s_add + len; i ++, j ++)			//写入原始数据
 	{
@@ -928,6 +904,8 @@ u8 ReadUpCommPortPara(void)
 		UpCommPortPara.random_peak_staggering_time 	= 50;
 		UpCommPortPara.specify_peak_staggering_time = 0;
 	}
+	
+	srand((unsigned)GetRTCTick1s());
 
 	return ret;
 }
@@ -1071,7 +1049,7 @@ u8 ReadDeviceBaseInfo(void)
 {
 	u8 ret = 0;
 	u8 buf[DEV_BASIC_INFO_LEN];
-	u8 default_mail_id[8] = {0x00,0x11,0x20,0x01,0x00,0x00,0x00,0x20};	//设备缺省通信地址
+	u8 default_mail_id[8] = {0x00,0x29,0x20,0x01,0x00,0x00,0x15,0x20};	//设备缺省通信地址
 
 	memset(buf,0,DEV_BASIC_INFO_LEN);
 
@@ -1120,7 +1098,7 @@ u8 ReadEventDetectTimeConf(void)
 		EventDetectConf.router_fault_detect_interval	= 3;
 		EventDetectConf.turn_on_collect_delay 			= 1;
 		EventDetectConf.turn_off_collect_delay 			= 1;
-		EventDetectConf.current_detect_delay 			= 1;
+		EventDetectConf.current_detect_delay 			= 10;
 	}
 
 	return ret;
@@ -1232,7 +1210,7 @@ u8 ReadLampsSwitchProject(void)
 
 		LampsSwitchProject.total_days = 0;
 	}
-	
+
 	for(i = 0; i < LampsSwitchProject.total_days; i ++)
 	{
 		memset(buf,0,SWITCH_TIME_LEN);
@@ -1346,7 +1324,7 @@ u8 ReadLampsRunMode(void)
 		else
 		{
 			LampsRunMode.run_mode[i].lamps_id  				= 0x0001;	//灯具序号
-			LampsRunMode.run_mode[i].initial_brightness  	= 100;		//默认亮度100%
+			LampsRunMode.run_mode[i].initial_brightness  	= 255;		//默认亮度100%
 			LampsRunMode.run_mode[i].energy_saving_mode_id  = 0x01;		//策略(节能模式)编号
 		}
 	}
@@ -1383,7 +1361,7 @@ u8 ReadEnergySavingMode(void)
 			memcpy(EnergySavingMode[i].mode_name,"DEFAULT ENERGY SAVING MODE",26);	//模式名称
 			EnergySavingMode[i].control_times = 0;		//控制次数
 		}
-		
+
 		for(j = 0; j < EnergySavingMode[i].control_times; j ++)
 		{
 			ret = ReadDataFromEepromToMemory(buf,
@@ -1402,7 +1380,7 @@ u8 ReadEnergySavingMode(void)
 			{
 				EnergySavingMode[i].operation[j].mode 			= 0x01;			//绝对时间
 				EnergySavingMode[i].operation[j].control_type 	= 0;			//开灯
-				EnergySavingMode[i].operation[j].brightness 	= 100;			//亮度100%
+				EnergySavingMode[i].operation[j].brightness 	= 255;			//亮度100%
 				EnergySavingMode[i].operation[j].relative_time 	= 0;			//相对时间 单位5min
 				memset(EnergySavingMode[i].operation[j].absolute_time,0,6);		//绝对时间
 			}
@@ -1437,7 +1415,7 @@ u8 ReadAppointmentControl(void)
 		memset(AppointmentControl.end_date,0,6);	//结束日期
 		AppointmentControl.lamps_num = 0;			//灯数
 	}
-	
+
 	for(i = 0; i < AppointmentControl.lamps_num; i ++)
 	{
 		memset(buf,0,APPOIN_CONTENT_LEN);
@@ -1453,7 +1431,7 @@ u8 ReadAppointmentControl(void)
 		else
 		{
 			AppointmentControl.run_mode[i].lamps_id 				= 0x00;	//灯具序号
-			AppointmentControl.run_mode[i].initial_brightness 		= 100;	//默认亮度100%
+			AppointmentControl.run_mode[i].initial_brightness 		= 255;	//默认亮度100%
 			AppointmentControl.run_mode[i].energy_saving_mode_id 	= 0;	//节能模式编号
 		}
 	}
@@ -1513,16 +1491,16 @@ void ResetRemoteCurrentControl(void)
 	RemoteControl._switch = 1;
 	RemoteControl.lock = 0;
 	RemoteControl.control_type = 0;
-	RemoteControl.brightness = 100;
+	RemoteControl.brightness = 255;
 	RemoteControl.lamps_id = 1;
 	RemoteControl.interface = INTFC_0_10V;
 	RemoteControl.current = 0.0f;
 	RemoteControl.voltage = 0.0f;
-	
+
 	CurrentControl._switch = 1;
 	CurrentControl.lock = 0;
 	CurrentControl.control_type = 0;
-	CurrentControl.brightness = 100;
+	CurrentControl.brightness = 255;
 	CurrentControl.lamps_id = 1;
 	CurrentControl.interface = INTFC_0_10V;
 	CurrentControl.current = 0.0f;
@@ -1739,7 +1717,7 @@ u8 ReadFTP_FrameWareInfo(void)
 void WriteFrameWareStateToEeprom(void)
 {
 	u8 temp_buf[20];
-	
+
 	temp_buf[0]  = FrameWareState.state;
 	temp_buf[1]  = (u8)(FrameWareState.total_bags >> 8);
 	temp_buf[2]  = (u8)FrameWareState.total_bags;
@@ -1753,7 +1731,7 @@ void WriteFrameWareStateToEeprom(void)
 	temp_buf[10] = (u8)(FrameWareState.total_size >> 16);
 	temp_buf[11] = (u8)(FrameWareState.total_size >> 8);
 	temp_buf[12] = (u8)FrameWareState.total_size;
-	
+
 	WriteDataFromMemoryToEeprom(temp_buf,E_FW_UPDATE_STATE_ADD,E_FW_UPDATE_STATE_LEN - 2);
 }
 
@@ -1772,20 +1750,20 @@ u8 ReadFrameWareState(void)
 	if(ret == 1)
 	{
 		FrameWareState.state 			= *(buf + 0);
-		FrameWareState.total_bags 		= ((((u16)(*(buf + 1))) << 8) & 0xFF00) + 
+		FrameWareState.total_bags 		= ((((u16)(*(buf + 1))) << 8) & 0xFF00) +
 		                                  (((u16)(*(buf + 2))) & 0x00FF);
-		FrameWareState.current_bag_cnt 	= ((((u16)(*(buf + 3))) << 8) & 0xFF00) + 
+		FrameWareState.current_bag_cnt 	= ((((u16)(*(buf + 3))) << 8) & 0xFF00) +
 		                                  (((u16)(*(buf + 4))) & 0x00FF);
-		FrameWareState.bag_size 		= ((((u16)(*(buf + 5))) << 8) & 0xFF00) + 
+		FrameWareState.bag_size 		= ((((u16)(*(buf + 5))) << 8) & 0xFF00) +
 		                                  (((u16)(*(buf + 6))) & 0x00FF);
-		FrameWareState.last_bag_size 	= ((((u16)(*(buf + 7))) << 8) & 0xFF00) + 
+		FrameWareState.last_bag_size 	= ((((u16)(*(buf + 7))) << 8) & 0xFF00) +
 		                                  (((u16)(*(buf + 8))) & 0x00FF);
 
 		FrameWareState.total_size 		= ((((u32)(*(buf + 9))) << 24) & 0xFF000000) +
 								          ((((u32)(*(buf + 10))) << 16) & 0x00FF0000) +
 								          ((((u32)(*(buf + 11))) << 8) & 0x0000FF00) +
 								          ((((u32)(*(buf + 12))) << 0) & 0x000000FF);
-		
+
 		ret = 1;
 	}
 	else
@@ -1798,36 +1776,37 @@ u8 ReadFrameWareState(void)
 		FrameWareState.last_bag_size 	= 0;
 
 		FrameWareState.total_size 		= 0;
-		
+
 		WriteFrameWareStateToEeprom();			//将默认值写入EEPROM
 	}
-	
+
 	if(FrameWareState.state == FIRMWARE_DOWNLOADING ||
 	   FrameWareState.state == FIRMWARE_DOWNLOAD_WAIT)
 	{
 		page_num = (FIRMWARE_MAX_FLASH_ADD - FIRMWARE_BUCKUP_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
-						
+
 		FLASH_Unlock();						//解锁FLASH
-		
+
 		for(i = 0; i < page_num; i ++)
 		{
 			FLASH_ErasePage(i * 2048 + FIRMWARE_BUCKUP_FLASH_BASE_ADD);	//擦除当前FLASH扇区
 		}
-		
+
 		FLASH_Lock();						//上锁
 	}
-	
+
 	if(FrameWareState.state == FIRMWARE_UPDATE_SUCCESS)
 	{
 		UpdateSoftWareVer();
-		
+		UpdateSoftWareReleaseDate();
+
 #ifdef EVENT_RECORD
 		CheckEventsEC51(0x00,DeviceInfo.software_ver);		//升级结果事件记录
 #endif
-		
+
 		goto RESET_STATE;
 	}
-	
+
 	return ret;
 }
 
@@ -1835,19 +1814,36 @@ u8 ReadFrameWareState(void)
 u8 UpdateSoftWareVer(void)
 {
 	u8 ret = 0;
-	
+
 	if(FTP_FrameWareInfo.version != NULL)
-	{	
+	{
 		if(search_str(DeviceInfo.software_ver, FTP_FrameWareInfo.version) == -1)
 		{
 			memcpy(DeviceInfo.software_ver,FTP_FrameWareInfo.version,8);
-			
+
 			WriteDataFromMemoryToEeprom(DeviceInfo.software_ver,SW_VERSION_ADD,SW_VERSION_LEN - 2);
-			
+
 			ret = 1;
 		}
 	}
-	
+
+	return ret;
+}
+
+//终端软件发布日期
+u8 UpdateSoftWareReleaseDate(void)
+{
+	u8 ret = 0;
+
+	DeviceInfo.software_release_date[0] = ((calendar.w_date / 10) << 4) + ((calendar.w_date % 10) & 0x0F);						//日
+	DeviceInfo.software_release_date[1] = ((calendar.w_month / 10) << 4) + ((calendar.w_month % 10) & 0x0F);					//月
+	DeviceInfo.software_release_date[2] = (((calendar.w_year - 2000) / 10) << 4) + (((calendar.w_year - 2000) % 10) & 0x0F);	//年
+
+	WriteDataFromMemoryToEeprom(DeviceInfo.software_release_date,SW_RE_DATE_ADD,SW_RE_DATE_LEN - 2);
+
+	ret = 1;
+
+
 	return ret;
 }
 
@@ -2060,7 +2056,7 @@ u8 ReadEventRecordList(void)
 	u8 buf[EC1_LABLE_LEN];
 
 	memset(buf,0,EC1_LABLE_LEN);
-	
+
 	ret = ReadDataFromEepromToMemory(buf,E_IMPORTANT_FLAG_ADD,E_IMPORTANT_FLAG_LEN);
 
 	if(ret == 1)
@@ -2081,11 +2077,11 @@ u8 ReadEventRecordList(void)
 	else
 	{
 		EventRecordList.ec1 = 0;
-		
+
 		EventRecordList.important_event_flag = 0;
 
 		WriteDataFromMemoryToEeprom(&EventRecordList.important_event_flag,E_IMPORTANT_FLAG_ADD, 1);
-		
+
 		WriteDataFromMemoryToEeprom(&EventRecordList.ec1,EC1_ADD, 1);
 
 		WriteDataFromMemoryToEeprom(EventRecordList.lable1,EC1_LABLE_ADD, EC1_LABLE_LEN - 2);
@@ -2100,7 +2096,7 @@ u8 ReadEventRecordList(void)
 	else
 	{
 		EventRecordList.ec2 = 0;
-		
+
 		EventRecordList.important_event_flag = 0;
 
 		WriteDataFromMemoryToEeprom(&EventRecordList.important_event_flag,E_IMPORTANT_FLAG_ADD, 1);
@@ -2121,7 +2117,7 @@ u8 ReadEventRecordList(void)
 		EventRecordList.important_event_flag = 0;
 
 		memset(EventRecordList.lable1,0,EC1_LABLE_LEN - 2);
-		
+
 		WriteDataFromMemoryToEeprom(&EventRecordList.important_event_flag,E_IMPORTANT_FLAG_ADD, 1);
 
 		WriteDataFromMemoryToEeprom(EventRecordList.lable1,EC1_LABLE_ADD, EC1_LABLE_LEN - 2);
@@ -2138,9 +2134,9 @@ u8 ReadEventRecordList(void)
 	else
 	{
 		EventRecordList.important_event_flag = 0;
-		
+
 		WriteDataFromMemoryToEeprom(&EventRecordList.important_event_flag,E_IMPORTANT_FLAG_ADD, 1);
-		
+
 		memset(EventRecordList.lable2,0,EC2_LABLE_LEN - 2);
 
 		WriteDataFromMemoryToEeprom(EventRecordList.lable2,EC2_LABLE_ADD, EC2_LABLE_LEN - 2);
@@ -2155,44 +2151,44 @@ u8 ReadEventRecordList(void)
 u8 CheckAppointmentControlValid(void)
 {
 	u8 ret = 0;
-	
+
 	struct tm tm_time;
 	time_t s_seconds = 0;	//起始秒计数 2000年开始
 	time_t e_seconds = 0;	//结束秒计数 2000年开始
 	time_t n_seconds = 0;	//当前秒计数 2000年开始
-	
+
 	tm_time.tm_year = (AppointmentControl.start_date[5] >> 4) * 10 + (AppointmentControl.start_date[5] & 0x0F) + 2000 - 1900;	//年
 	tm_time.tm_mon 	= ((AppointmentControl.start_date[4] >> 4) & 0x01) * 10 + (AppointmentControl.start_date[4] & 0x0F) - 1;	//月
 	tm_time.tm_mday = (AppointmentControl.start_date[3] >> 4) * 10 + (AppointmentControl.start_date[3] & 0x0F);					//日
 	tm_time.tm_hour = (AppointmentControl.start_date[2] >> 4) * 10 + (AppointmentControl.start_date[2] & 0x0F);					//时
 	tm_time.tm_min 	= (AppointmentControl.start_date[1] >> 4) * 10 + (AppointmentControl.start_date[1] & 0x0F);					//分
 	tm_time.tm_sec 	= (AppointmentControl.start_date[0] >> 4) * 10 + (AppointmentControl.start_date[0] & 0x0F);					//秒
-	
+
 	s_seconds = mktime(&tm_time);
-	
+
 	tm_time.tm_year = (AppointmentControl.end_date[5] >> 4) * 10 + (AppointmentControl.end_date[5] & 0x0F) + 2000 - 1900;	//年
 	tm_time.tm_mon 	= ((AppointmentControl.end_date[4] >> 4) & 0x01) * 10 + (AppointmentControl.end_date[4] & 0x0F) - 1;	//月
 	tm_time.tm_mday = (AppointmentControl.end_date[3] >> 4) * 10 + (AppointmentControl.end_date[3] & 0x0F);					//日
 	tm_time.tm_hour = (AppointmentControl.end_date[2] >> 4) * 10 + (AppointmentControl.end_date[2] & 0x0F);					//时
 	tm_time.tm_min 	= (AppointmentControl.end_date[1] >> 4) * 10 + (AppointmentControl.end_date[1] & 0x0F);					//分
 	tm_time.tm_sec 	= (AppointmentControl.end_date[0] >> 4) * 10 + (AppointmentControl.end_date[0] & 0x0F);					//秒
-	
+
 	e_seconds = mktime(&tm_time);
-	
+
 	if(s_seconds >= e_seconds)	//起始时间等于或晚于结束时间
 	{
 		return 0;
 	}
-	
+
 	tm_time.tm_year = calendar.w_year - 1900;	//年
 	tm_time.tm_mon 	= calendar.w_month - 1;		//月
 	tm_time.tm_mday = calendar.w_date;			//日
 	tm_time.tm_hour = calendar.hour;			//时
 	tm_time.tm_min 	= calendar.min;				//分
 	tm_time.tm_sec 	= calendar.sec;				//秒
-	
+
 	n_seconds = mktime(&tm_time);
-	
+
 	if(s_seconds <= n_seconds && n_seconds <= e_seconds)	//当前时间大于等于起始时间并且小于等于结束日时间
 	{
 		ret = 1;
@@ -2201,7 +2197,7 @@ u8 CheckAppointmentControlValid(void)
 	{
 		ret = 0;
 	}
-	
+
 	return ret;
 }
 
@@ -2213,12 +2209,12 @@ u8 LookUpMatchedEnergySivingMode(u8 app_ctl)
 	u8 i = 0;
 	u8 match_num = 0;
 	u8 match_state = 0;
-	
+
 	if(app_ctl == 1)								//预约控制有效
 	{
 		if(AppointmentControl.lamps_num != 0)		//预约控制灯数
 		{
-			if(LampsParameters.parameters[0].lamps_id == 
+			if(LampsParameters.parameters[0].lamps_id ==
 			   AppointmentControl.run_mode[0].lamps_id)	//灯具编号匹配成功
 			{
 				for(i = 0; i < MAX_ENERGY_SAVING_MODE_NUM; i ++)
@@ -2227,11 +2223,11 @@ u8 LookUpMatchedEnergySivingMode(u8 app_ctl)
 					{
 						match_num = i;					//获取到的节能运行模式
 						match_state = 1;				//匹配成功标志
-						
+
 						i = MAX_ENERGY_SAVING_MODE_NUM;	//用于跳出for循环
 					}
 				}
-				
+
 				if(match_state == 1)					//节能运行模式匹配成功
 				{
 					if(EnergySavingMode[match_num].control_times >= 1)	//控制次数有效
@@ -2248,7 +2244,7 @@ u8 LookUpMatchedEnergySivingMode(u8 app_ctl)
 		{
 			if(LampsRunMode.num >= 1)		//已设置运行模式的灯数
 			{
-				if(LampsParameters.parameters[0].lamps_id == 
+				if(LampsParameters.parameters[0].lamps_id ==
 					LampsRunMode.run_mode[0].lamps_id)		//灯具编号匹配成功
 				{
 					for(i = 0; i < MAX_ENERGY_SAVING_MODE_NUM; i ++)
@@ -2257,11 +2253,11 @@ u8 LookUpMatchedEnergySivingMode(u8 app_ctl)
 						{
 							match_num = i;					//获取到的节能运行模式
 							match_state = 1;				//匹配成功标志
-							
+
 							i = MAX_ENERGY_SAVING_MODE_NUM;	//用于跳出for循环
 						}
 					}
-					
+
 					if(match_state == 1)					//节能运行模式匹配成功
 					{
 						if(EnergySavingMode[match_num].control_times >= 1)	//控制次数有效
@@ -2273,7 +2269,7 @@ u8 LookUpMatchedEnergySivingMode(u8 app_ctl)
 			}
 		}
 	}
-	
+
 	return ret;
 }
 
@@ -2300,7 +2296,7 @@ void StrategyListStateReset(pControlStrategy head,u8 mode)
         pControlStrategy temp;
 
         temp = head;
-		
+
 		if(mode == 1)
 		{
 			if(temp->mode == 0x01)			//绝对时间控制方式的策略需要复位
@@ -2319,7 +2315,7 @@ void StrategyListStateReset(pControlStrategy head,u8 mode)
 		{
 			temp->state = WAIT_EXECUTE;	//复位为等待执行状态
 		}
-		
+
         head = head->next;
     }
 }
@@ -2332,7 +2328,7 @@ u8 UpdateControlStrategyList(u8 app_ctl)
 	u8 num = 0;
 	pControlStrategy strategy = NULL;
 	pControlStrategy temp = NULL;
-	
+
 	if(xSchedulerRunning == 1)
 	{
 		xSemaphoreTake(xMutex_STRATEGY, portMAX_DELAY);
@@ -2346,26 +2342,26 @@ u8 UpdateControlStrategyList(u8 app_ctl)
 	if(num < MAX_ENERGY_SAVING_MODE_NUM)			//获取节能模式成功
 	{
 		ControlStrategy = (pControlStrategy)mymalloc(sizeof(pControlStrategy));
-		
+
 		ControlStrategy->prev 	= NULL;
 		ControlStrategy->next 	= NULL;
 		ControlStrategy->state 	= WAIT_EXECUTE;
-		
+
 		for(i = 0; i < EnergySavingMode[num].control_times; i ++)
 		{
 			strategy = (pControlStrategy)mymalloc(sizeof(pControlStrategy));
-			
+
 			strategy->prev  = NULL;
 			strategy->next  = NULL;
 			strategy->state = WAIT_EXECUTE;
-			
+
 			strategy->mode = EnergySavingMode[num].operation[i].mode;
 			strategy->type = EnergySavingMode[num].operation[i].control_type;
 			strategy->brightness = EnergySavingMode[num].operation[i].brightness;
 
 			strategy->year   = (EnergySavingMode[num].operation[i].absolute_time[5] >> 4) * 10 +
 			                   (EnergySavingMode[num].operation[i].absolute_time[5] & 0x0f);
-			strategy->month  = ((EnergySavingMode[num].operation[i].absolute_time[4] >> 4) & 0x01) * 10 + 
+			strategy->month  = ((EnergySavingMode[num].operation[i].absolute_time[4] >> 4) & 0x01) * 10 +
 			                    (EnergySavingMode[num].operation[i].absolute_time[4] & 0x0f);
 			strategy->date   = (EnergySavingMode[num].operation[i].absolute_time[3] >> 4) * 10 +
 			                   (EnergySavingMode[num].operation[i].absolute_time[3] & 0x0f);
@@ -2377,7 +2373,7 @@ u8 UpdateControlStrategyList(u8 app_ctl)
 			                   (EnergySavingMode[num].operation[i].absolute_time[0] & 0x0f);
 
 			strategy->time_re = EnergySavingMode[num].operation[i].relative_time * 5 * 60;
-			
+
 			if(ControlStrategy != NULL)
 			{
 				for(temp = ControlStrategy; temp != NULL; temp = temp->next)
@@ -2386,21 +2382,21 @@ u8 UpdateControlStrategyList(u8 app_ctl)
 					{
 						temp->next = strategy;
 						temp->next->prev = temp;
-						
+
 						ret = 1;
-						
+
 						break;
 					}
 				}
 			}
 		}
 	}
-	
+
 	if(xSchedulerRunning == 1)
 	{
 		xSemaphoreGive(xMutex_STRATEGY);
 	}
-	
+
 	return ret;
 }
 
@@ -2409,12 +2405,12 @@ u8 UpdateControlStrategyList(u8 app_ctl)
 void RestoreFactorySettings(u8 mode)
 {
 	u8 i = 0;
-	
+
 	if(mode == 3)
 	{
 		AT24CXX_WriteLenByte(SERVER_INFO_ADD + SERVER_INFO_LEN - 2,0xFFFF,2);			//恢复主站IP和端口配置
 	}
-	
+
 	AT24CXX_WriteLenByte(UP_COMM_PARA_ADD + UP_COMM_PARA_LEN - 2,0xFFFF,2);				//恢复上行通信口通信参数
 	AT24CXX_WriteLenByte(ER_OTHER_CONF_ADD + ER_OTHER_CONF_LEN - 2,0xFFFF,2);			//恢复终端事件记录配置参数
 	AT24CXX_WriteLenByte(DEV_BASIC_INFO_ADD + DEV_BASIC_INFO_LEN - 2,0xFFFF,2);			//恢复设备基本信息
@@ -2424,12 +2420,12 @@ void RestoreFactorySettings(u8 mode)
 	AT24CXX_WriteLenByte(SWITCH_DATE_DAYS_ADD + SWITCH_DATE_DAYS_LEN - 2,0xFFFF,2);		//恢复控制器开关灯时间数据
 	AT24CXX_WriteLenByte(LAMPS_NUM_PARA_ADD + LAMPS_NUM_PARA_LEN - 2,0xFFFF,2);			//恢复灯具基本信息参数
 	AT24CXX_WriteLenByte(LAMPS_NUM_MODE_ADD + LAMPS_NUM_MODE_LEN - 2,0xFFFF,2);			//恢复单灯运行模式参数
-	
+
 	for(i = 0; i < MAX_ENERGY_SAVING_MODE_NUM; i ++)
 	{
 		AT24CXX_WriteOneByte(E_SAVE_MODE_LABLE_ADD + i * E_SAVE_MODE_LEN,0);			//恢复单灯节能模式
 	}
-	
+
 	AT24CXX_WriteLenByte(APPOIN_LABLE_ADD + APPOIN_LABLE_LEN - 2,0xFFFF,2);				//恢复单灯预约控制数据
 	AT24CXX_WriteLenByte(ILLUM_THRE_ADD + ILLUM_THRE_LEN - 2,0xFFFF,2);					//恢复单灯照度开关阈值
 	AT24CXX_WriteLenByte(SWITCH_MODE_ADD + SWITCH_MODE_LEN - 2,0xFFFF,2);				//恢复单灯开关模式选择
@@ -2441,9 +2437,9 @@ void RestoreFactorySettings(u8 mode)
 	AT24CXX_WriteLenByte(E_FTP_SERVER_INFO_ADD + E_FTP_SERVER_INFO_LEN - 2,0xFFFF,2);	//恢复FTP服务器信息
 	AT24CXX_WriteLenByte(E_FTP_FW_INFO_ADD + E_FTP_FW_INFO_LEN - 2,0xFFFF,2);			//恢复重要事件标志
 	AT24CXX_WriteLenByte(E_FW_UPDATE_STATE_ADD + E_FW_UPDATE_STATE_LEN - 2,0xFFFF,2);	//恢复OTA状态信息
-	
+
 	ReadParametersFromEEPROM();															//恢复缓存中的数据
-	
+
 	NeedUpdateStrategyList = 1;															//重新加载策略
 }
 
@@ -2477,7 +2473,7 @@ void ReadParametersFromEEPROM(void)
 	ReadLamosNumSupport();
 	ReadEventRecordList();
 	ReadFrameWareState();
-	
+
 //	UpdateControlStrategyList();
 
 	ResetRemoteCurrentControl();

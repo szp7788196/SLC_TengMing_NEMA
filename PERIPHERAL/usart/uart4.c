@@ -41,13 +41,13 @@ void UART4_Write(uint8_t *Data, uint32_t len)
 
 #ifndef UART_DMA
     uint32_t i;
-	
+
     USART_ClearFlag(UART4, USART_FLAG_TC);
-	
+
     for(i = 0; i < len; i++)
     {
         USART_SendData(UART4, *Data++);
-		
+
         while( USART_GetFlagStatus(UART4, USART_FLAG_TC) == RESET );
     }
 
@@ -68,7 +68,7 @@ void UART4_Write(uint8_t *Data, uint32_t len)
     DMA_Init(USATx_DMA[4],&DMA_InitStruct);
     DMA_Cmd(USATx_DMA[4],ENABLE);
 #endif
-	
+
     rsp_ok=0;
 }
 void UART4_Init(u32 bound)
@@ -76,7 +76,7 @@ void UART4_Init(u32 bound)
 	GPIO_InitTypeDef GPIO_InitStructure;
 	USART_InitTypeDef USART_InitStructure;
 //	NVIC_InitTypeDef NVIC_InitStructure;
-	
+
 #ifdef UART_DMA
 	DMA_InitTypeDef DMA_InitStructure;
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
@@ -112,7 +112,7 @@ void UART4_Init(u32 bound)
 //	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
 //	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 //	NVIC_Init(&NVIC_InitStructure);
-	
+
 #ifdef UART_DMA
 	//DMA1通道4配置
 	DMA_DeInit(USARx_DMA[4]);
@@ -157,11 +157,11 @@ void UART4_Init(u32 bound)
 void UART4_IRQHandler(void)
 {
 	unsigned int data;
-	
+
 	if(UART4->SR & 0x0F)
 	{
 		data = UART4->DR;
-		
+
 		data = data;		//没有实际用途，只是为了消除警告
 	}
 #ifndef UART_DMA
@@ -169,7 +169,7 @@ void UART4_IRQHandler(void)
 	{
 		data = UART4->DR;
 		ringbuf_put(&ring_fifo,data);
-		
+
 		if(ringbuf_elements(&ring_fifo) == 1)
 			USART_ITConfig(UART4, USART_IT_IDLE, ENABLE);
 	}
@@ -178,7 +178,7 @@ void UART4_IRQHandler(void)
 	{
 		data = UART4->SR;
 		data = UART4->DR;
-		
+
 #ifndef UART_DMA
 		USART_ITConfig(UART4, USART_IT_IDLE, DISABLE);
 #else
@@ -186,7 +186,7 @@ void UART4_IRQHandler(void)
 		ring_fifo.put_ptr = MAX_RCV_LEN - DMA_GetCurrDataCounter(USARx_DMA[4]);
 #endif
 
-		if((uint8_t *)strstr((const char *)ring_fifo.data, "+MIPL") != NULL && (uint8_t *)strstr((const char *)ring_fifo.data, "+MIPLCREATE") == NULL) 
+		if((uint8_t *)strstr((const char *)ring_fifo.data, "+MIPL") != NULL && (uint8_t *)strstr((const char *)ring_fifo.data, "+MIPLCREATE") == NULL)
 		{
 			fifo_put(dl_buf_id,ringbuf_elements(&ring_fifo),ring_fifo.data);
 		}
@@ -205,10 +205,10 @@ void UART4_IRQHandler(void)
 			ring_fifo1.put_ptr = ring_fifo.put_ptr;
 			memcpy(ring_fifo1.data,ring_fifo.data,ringbuf_elements(&ring_fifo));
 		}
-		
+
 		ringbuf_clear(&ring_fifo);
 	}
-	
+
 #ifdef UART_DMA
 	DMA_SetCurrDataCounter(USARx_DMA[4],MAX_RCV_LEN);   //重新设置DMA的读取缓冲区长度
 	DMA_Cmd(USARx_DMA[4], ENABLE);  //开启DMA

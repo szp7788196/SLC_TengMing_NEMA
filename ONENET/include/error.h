@@ -17,5 +17,6 @@
 #define NBIOT_ERR_REGISTERED    -11
 #define NBIOT_ERR_PENDING       -12
 #define NBIOT_ERR_BS_FAILED     -13
+#define NBIOT_ERR_ERROR     	-14
 
 #endif /* ONENET_ERROR_H_ */

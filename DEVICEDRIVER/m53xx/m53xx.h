@@ -10,8 +10,8 @@
 #define BCXX_RST_HIGH		GPIO_SetBits(GPIOA,GPIO_Pin_15)
 #define BCXX_RST_LOW		GPIO_ResetBits(GPIOA,GPIO_Pin_15)
 
-#define BCXX_PWREN_HIGH		GPIO_SetBits(GPIOA,GPIO_Pin_11)
-#define BCXX_PWREN_LOW		GPIO_ResetBits(GPIOA,GPIO_Pin_11)
+#define BCXX_PWREN_HIGH		GPIO_SetBits(GPIOC,GPIO_Pin_7)
+#define BCXX_PWREN_LOW		GPIO_ResetBits(GPIOC,GPIO_Pin_7)
 
 
 #define M53XX_PRINTF_RX_BUF
@@ -174,7 +174,7 @@ unsigned char m53xx_get_AT_CCLK(char *buf);
 unsigned char m53xx_set_AT_MIPLCONFIG(char *ip,char *port);
 
 
-void mipl_generate(char *buf, size_t buflen, MIPL_T *mipl);
+void mipl_generate(void);
 void init_miplconf(uint32_t lifetime,const char *uri,const char *ep);
 void m53xx_addobj(uint16_t		objid,
   	              uint8_t		  instcount,

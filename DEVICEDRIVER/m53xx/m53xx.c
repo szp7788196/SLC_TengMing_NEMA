@@ -30,13 +30,18 @@ void m53xx_hard_init(void)
 {
 	GPIO_InitTypeDef  GPIO_InitStructure;
 
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOC | RCC_APB2Periph_AFIO, ENABLE);
 	GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE);
 
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11 | GPIO_Pin_15;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_15;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOC, &GPIO_InitStructure);
 
 	BCXX_PWREN_LOW;
 	BCXX_RST_LOW;
@@ -60,8 +65,16 @@ void m53xx_hard_reset(void)
 
 u32 ip_SendData(int8_t *buf, uint32_t len)
 {
-     SentData((char *)buf,"OK",100);
-     return len;
+	u8 err = 0;
+
+	err = SentData((char *)buf,"OK",100);
+	
+	if(err == 1)
+	{
+		return len;
+	}
+	
+	return (u32)err;
 }
 
 void netif_rx(uint8_t *buf,uint16_t *read)
@@ -102,6 +115,8 @@ void netdev_init(void)
 
 	if(m53xx_get_AT_CIMI() != 1)
 		goto RE_INIT;
+
+	printf("got imei\r\n");
 
 	if(m53xx_set_AT_CFUN(0) != 1)
 		goto RE_INIT;
@@ -148,7 +163,7 @@ void netdev_init(void)
 	{
 		goto RE_INIT;
 	}
-	
+
 #ifdef DEBUG_LOG
 	printf("m5310-A init sucess\r\n");
 #endif
@@ -549,88 +564,88 @@ unsigned char m53xx_get_AT_CGPADDR(char **ip)
     return ret;
 }
 
-//新建一个SOCKET
-unsigned char m53xx_set_AT_NSOCR(char *type, char *protocol,char *port)
-{
-	unsigned char ret = 255;
-	char cmd_tx_buf[64];
-	unsigned char buf[3] = {0,0,0};
+////新建一个SOCKET
+//unsigned char m53xx_set_AT_NSOCR(char *type, char *protocol,char *port)
+//{
+//	unsigned char ret = 255;
+//	char cmd_tx_buf[64];
+//	unsigned char buf[3] = {0,0,0};
 
-	memset(cmd_tx_buf,0,64);
+//	memset(cmd_tx_buf,0,64);
 
-	sprintf(cmd_tx_buf,"AT+NSOCR=%s,%s,%s,1\r\n",type,protocol,port);
+//	sprintf(cmd_tx_buf,"AT+NSOCR=%s,%s,%s,1\r\n",type,protocol,port);
 
-    if(SendCmd(cmd_tx_buf, "OK", 100,0,TIMEOUT_1S) == 1)
-    {
-		get_str1((unsigned char *)result_ptr->data, "\r\n", 1, "\r\n", 2, (unsigned char *)buf);
-		if(strlen((char *)buf) == 1)
-		{
-			ret = buf[0] - 0x30;
-		}
-    }
+//    if(SendCmd(cmd_tx_buf, "OK", 100,0,TIMEOUT_1S) == 1)
+//    {
+//		get_str1((unsigned char *)result_ptr->data, "\r\n", 1, "\r\n", 2, (unsigned char *)buf);
+//		if(strlen((char *)buf) == 1)
+//		{
+//			ret = buf[0] - 0x30;
+//		}
+//    }
 
-    return ret;
-}
+//    return ret;
+//}
 
-//关闭一个SOCKET
-unsigned char m53xx_set_AT_NSOCL(unsigned char socket)
-{
-	unsigned char ret = 0;
-	char cmd_tx_buf[64];
+////关闭一个SOCKET
+//unsigned char m53xx_set_AT_NSOCL(unsigned char socket)
+//{
+//	unsigned char ret = 0;
+//	char cmd_tx_buf[64];
 
-	memset(cmd_tx_buf,0,64);
+//	memset(cmd_tx_buf,0,64);
 
-	sprintf(cmd_tx_buf,"AT+NSOCL=%d\r\n",socket);
+//	sprintf(cmd_tx_buf,"AT+NSOCL=%d\r\n",socket);
 
-    ret = SendCmd(cmd_tx_buf, "OK", 100,0,TIMEOUT_1S);
+//    ret = SendCmd(cmd_tx_buf, "OK", 100,0,TIMEOUT_1S);
 
-    return ret;
-}
+//    return ret;
+//}
 
-//向UDP服务器发送数据并等待响应数据
-unsigned char m53xx_set_AT_NSOFT(unsigned char socket, char *ip,char *port,unsigned int len,char *inbuf)
-{
-	unsigned char ret = 0;
-    char cmd_tx_buf[256];
+////向UDP服务器发送数据并等待响应数据
+//unsigned char m53xx_set_AT_NSOFT(unsigned char socket, char *ip,char *port,unsigned int len,char *inbuf)
+//{
+//	unsigned char ret = 0;
+//    char cmd_tx_buf[256];
 
-	memset(cmd_tx_buf,0,256);
+//	memset(cmd_tx_buf,0,256);
 
-	sprintf(cmd_tx_buf,"AT+NSOST=%d,%s,%s,%d,%s\r\n",socket,ip,port,len,inbuf);
+//	sprintf(cmd_tx_buf,"AT+NSOST=%d,%s,%s,%d,%s\r\n",socket,ip,port,len,inbuf);
 
-    ret = SendCmd(cmd_tx_buf, "+NSOSTR:", 100,0,TIMEOUT_60S);
+//    ret = SendCmd(cmd_tx_buf, "+NSOSTR:", 100,0,TIMEOUT_60S);
 
-    return ret;
-}
+//    return ret;
+//}
 
-//建立一个TCP连接
-unsigned char m53xx_set_AT_NSOCO(unsigned char socket, char *ip,char *port)
-{
-	unsigned char ret = 0;
-    char cmd_tx_buf[64];
+////建立一个TCP连接
+//unsigned char m53xx_set_AT_NSOCO(unsigned char socket, char *ip,char *port)
+//{
+//	unsigned char ret = 0;
+//    char cmd_tx_buf[64];
 
-	memset(cmd_tx_buf,0,64);
+//	memset(cmd_tx_buf,0,64);
 
-	sprintf(cmd_tx_buf,"AT+NSOCO=%d,%s,%s\r\n",socket,ip,port);
+//	sprintf(cmd_tx_buf,"AT+NSOCO=%d,%s,%s\r\n",socket,ip,port);
 
-    ret = SendCmd(cmd_tx_buf, "OK", 100,0,TIMEOUT_1S);
+//    ret = SendCmd(cmd_tx_buf, "OK", 100,0,TIMEOUT_1S);
 
-    return ret;
-}
+//    return ret;
+//}
 
-//通过TCP连接发送数据
-unsigned char m53xx_set_AT_NSOSD(unsigned char socket, unsigned int len,char *inbuf)
-{
-	unsigned char ret = 0;
-	char cmd_tx_buf[512];
+////通过TCP连接发送数据
+//unsigned char m53xx_set_AT_NSOSD(unsigned char socket, unsigned int len,char *inbuf)
+//{
+//	unsigned char ret = 0;
+//	char cmd_tx_buf[512];
 
-	memset(cmd_tx_buf,0,512);
+//	memset(cmd_tx_buf,0,512);
 
-	sprintf(cmd_tx_buf,"AT+NSOSD=%d,%d,%s,0x100,100\r\n",socket,len,inbuf);
+//	sprintf(cmd_tx_buf,"AT+NSOSD=%d,%d,%s,0x100,100\r\n",socket,len,inbuf);
 
-    ret = SendCmd(cmd_tx_buf, "+NSOSTR:", 100,0,TIMEOUT_60S);
+//    ret = SendCmd(cmd_tx_buf, "+NSOSTR:", 100,0,TIMEOUT_60S);
 
-    return ret;
-}
+//    return ret;
+//}
 
 //获取信号强度
 unsigned char m53xx_get_AT_CSQ(signed short *csq)
@@ -701,7 +716,7 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 		while(*msg != ',')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
-		
+
 		i = 0;
 		msg = msg + 1;
 		memset(tmp,0,10);
@@ -709,14 +724,14 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
 		*pci = nbiot_atoi(tmp,strlen(tmp));
-		
+
 		i = 0;
 		msg = msg + 1;
 		memset(tmp,0,10);
 		while(*msg != ',')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
-		
+
 		i = 0;
 		msg = msg + 1;
 		memset(tmp,0,10);
@@ -724,7 +739,7 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
 		*rsrp = nbiot_atoi(tmp,strlen(tmp));
-		
+
 		i = 0;
 		msg = msg + 1;
 		memset(tmp,0,10);
@@ -732,7 +747,7 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
 		*rsrq = nbiot_atoi(tmp,strlen(tmp));
-		
+
 		i = 0;
 		msg = msg + 1;
 		memset(tmp,0,10);
@@ -740,7 +755,7 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
 		*rssi = nbiot_atoi(tmp,strlen(tmp));
-		
+
 		i = 0;
 		msg = msg + 1;
 		memset(tmp,0,10);
@@ -771,35 +786,37 @@ unsigned char m53xx_get_AT_CCLK(char *buf)
     return ret;
 }
 
-void mipl_generate(char *buf, size_t buflen, MIPL_T *mipl)
+void mipl_generate(void)
 {
-	strcpy(buf,"AT+MIPLCREATE=49,130031F10003F2002304001100000000000000123137322E31382E32342E3134323A35363833000131F300087100000000,0,49,0\r\n"); //更改到适配的平台
-	SendCmd(buf,"+MIPLCREATE:0",300,0,TIMEOUT_2S);
+	memset(cmd_tx_buff,0,150);
 	
-//	strcpy(buf,"AT+MIPLCREATE=52,130034F10003F2002504001100000000000000143138332E3230372E3231352E3134333A35363833000131F30009710001000131,0,52,0\r\n"); //更改到适配的平台
-//	SendCmd(buf,"+MIPLCREATE:0",300,0,TIMEOUT_2S);
-	
+	strcpy(cmd_tx_buff,"AT+MIPLCREATE=49,130031F10003F2002304001100000000000000123137322E31382E32342E3134323A35363833000131F300087100000000,0,49,0\r\n"); //更改到适配的平台
+	SendCmd(cmd_tx_buff,"+MIPLCREATE:0",300,0,TIMEOUT_2S);
+
+//	strcpy(cmd_tx_buff,"AT+MIPLCREATE=52,130034F10003F2002504001100000000000000143138332E3230372E3231352E3134333A35363833000131F30009710001000131,0,52,0\r\n"); //更改到适配的平台
+//	SendCmd(cmd_tx_buff,"+MIPLCREATE:0",300,0,TIMEOUT_2S);
+
 //	SendCmd("AT+MIPLCREATEEX=\"nbiotbt.heclouds.com:5683\",1\r\n","+MIPLCREATEEX:0",300,0,TIMEOUT_2S);
 }
 
 void init_miplconf(u32 lifetime,const char *uri,const char *ep)
 {
-	MIPL_T mipl;
-	char buffer[512];
+//	MIPL_T mipl;
+//	char buffer[128];
 
-	mipl.boot = MIPL_BOOT;
-	mipl.encrypt = MIPL_ENCRYPT;
-	mipl.debug = MIPL_DEBUG;
-	mipl.port = MIPL_PORT;
-	mipl.keep_alive = lifetime;
-	mipl.uri = uri;
-	mipl.uri_len = strlen(uri);
-	mipl.ep = ep;
-	mipl.ep_len = strlen(ep);
-	mipl.block1 = MIPL_BLOCK1,	//COAP option BLOCK1(PUT or POST),0-6. 2^(4+n)  bytes
-	mipl.block2 = MIPL_BLOCK2,	//COAP option BLOCK2(GET),0-6. 2^(4+n)  bytes
-	mipl.block2th = MIPL_BLOCK2TH,
-	mipl_generate(buffer,sizeof(buffer),&mipl);
+//	mipl.boot = MIPL_BOOT;
+//	mipl.encrypt = MIPL_ENCRYPT;
+//	mipl.debug = MIPL_DEBUG;
+//	mipl.port = MIPL_PORT;
+//	mipl.keep_alive = lifetime;
+//	mipl.uri = uri;
+//	mipl.uri_len = strlen(uri);
+//	mipl.ep = ep;
+//	mipl.ep_len = strlen(ep);
+//	mipl.block1 = MIPL_BLOCK1,	//COAP option BLOCK1(PUT or POST),0-6. 2^(4+n)  bytes
+//	mipl.block2 = MIPL_BLOCK2,	//COAP option BLOCK2(GET),0-6. 2^(4+n)  bytes
+//	mipl.block2th = MIPL_BLOCK2TH,
+//	mipl_generate(cmd_tx_buff,sizeof(cmd_tx_buff),&mipl);
 }
 
 void m53xx_addobj(uint16_t	   objid,
@@ -848,7 +865,6 @@ void m53xx_delobj(uint16_t  objid)
 	 SendCmd(cmd_tx_buff,"OK",300,0,TIMEOUT_2S);
  }
 
-
  size_t m53xx_register_request( uint8_t  *buffer,
                                 size_t    buffer_len,
                                 uint16_t  lifetime,
@@ -864,12 +880,17 @@ void m53xx_delobj(uint16_t  objid)
 	nbiot_itoa(waittime,ative,6);
 	strcat((char *)buffer,ative);
 	strcat((char *)buffer,"\r\n");
-	
+
 	status=SendCmd((char *)buffer,"OK",300,0,TIMEOUT_2S);
 
 	if(status==2)
 		SendCmd((char *)buffer,"OK",300,0,TIMEOUT_2S);
-
+	
+	if(status != 1)
+	{
+		return 0;
+	}
+	
 	return buffer_len;
 }
 
@@ -1077,7 +1098,7 @@ void m53xx_discover_rsp(uint16_t objid,char *resid)
 
 	strcat(cmd_tx_buff,resid);
 	strcat(cmd_tx_buff,"\r\n");
-	
+
 #ifdef DEBUG_LOG
 	printf("discover rsp:");
 	printf("%s\r\n",cmd_tx_buff);

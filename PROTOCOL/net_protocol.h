@@ -5,13 +5,14 @@
 #include "m53xx.h"
 
 
-#define MAX_FRAME_LEN	1024
-#define MAX_PNFN_NUM	20
+#define MAX_FRAME_LEN		1024
+#define MAX_PNFN_NUM		1
+#define MAX_USER_DATA_LEN	512
 
 #define LAMPS_SWITCH_MAX_DAYS		366		//开关灯最大天数
 #define LAMPS_MAX_NUM				1		//最大灯具数量
 #define MAX_OPERATION_TIMES			30		//单个节能模式操作次数
-#define MAX_ENERGY_SAVING_MODE_NUM	10		//节能模式的最大个数
+#define MAX_ENERGY_SAVING_MODE_NUM	5		//节能模式的最大个数
 
 #define ENCRYPTION_TYPE				0
 #define ENCRYPTION_VERSION			1

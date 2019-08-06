@@ -105,7 +105,6 @@ int nbiot_register_update( nbiot_device_t *dev,
 		{
 			dev->state = STATE_REG_UPDATE_PENDING;
 
-
 			nbiot_transaction_add( dev,
 									true,
 									buffer,
@@ -163,11 +162,13 @@ int nbiot_deregister( nbiot_device_t *dev,
     return COAP_NO_ERROR;
 }
 
-void nbiot_register_step( nbiot_device_t *dev,
+int nbiot_register_step( nbiot_device_t *dev,
                           time_t         now,
                           uint8_t        *buffer,
                           size_t         buffer_len )
 {
+	int err = COAP_NO_ERROR;
+	
 	int next_update = dev->life_time;
 
 	if ( dev->state == STATE_REGISTERED )
@@ -176,18 +177,20 @@ void nbiot_register_step( nbiot_device_t *dev,
 
 		if (dev->registraction + next_update <= now)
 		{
-			nbiot_register_update(dev,buffer,buffer_len);
+			err = nbiot_register_update(dev,buffer,buffer_len);
 		}
 	}
 
 	if (dev->state == STATE_REG_UPDATE_NEEDED)
 	{
-		nbiot_register_update(dev,buffer,buffer_len);
+		err = nbiot_register_update(dev,buffer,buffer_len);
 	}
 
 	if ( dev->state == STATE_REG_FAILED)
 	{
 		nbiot_device_close(dev,10);
-		nbiot_register_start(dev,100,buffer,buffer_len);
+		err = nbiot_register_start(dev,100,buffer,buffer_len);
 	}
+	
+	return err;
 }

@@ -244,6 +244,11 @@ u16 CombineUserData(u8 *u_data)
 
 	for(i = 0; i < user_data_out.num; i ++)	//填充数据单元标识符和数据单元
 	{
+		if(4 + user_data_out.data_unit[i].len > MAX_USER_DATA_LEN)	//数据单元最大长度不可超过MAX_USER_DATA_LEN
+		{
+			return 0;
+		}
+		
 		SplitDataUnitSign(user_data_out.data_unit[i].pn_fn.pn,
 						  user_data_out.data_unit[i].pn_fn.fn,
 						  u_data + pos + 0,
@@ -288,10 +293,15 @@ u16 CombineCompleteFrame(u8 prm, u8 *outbuf)
 	CombineControlMsg(prm,outbuf + 6);			//控制域从第6字节开始
 
 	ret = CombineUserData(outbuf + 6 + 12);		//用户数据域从第18字节开始
+	
+	if(ret == 0)								//数据单元长度超限,直接释放掉数据单元内存
+	{
+		goto FREE_DATA_UNIT;
+	}
 
 	ret += 12;									//控制域+用户数据域的长度
 
-	crc_cal = CRC16(outbuf + 6,ret,1);
+	crc_cal = GetCRC16(outbuf + 6,ret);
 
 	*(outbuf + 0) = 0x68;						//填充报文头 第0字节开始
 	*(outbuf + 1) = (u8)(ret & 0x00FF);
@@ -309,6 +319,7 @@ u16 CombineCompleteFrame(u8 prm, u8 *outbuf)
 
 	ret += 3;									//报文头+控制域+用户数据域+CRC+结束符的长度
 
+	FREE_DATA_UNIT:
 	for(i = 0; i < user_data_out.num; i ++)		//释放掉输出数据单元的内存
 	{
 		if(user_data_out.data_unit[i].len != 0)
@@ -325,42 +336,165 @@ u16 CombineCompleteFrame(u8 prm, u8 *outbuf)
 u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 {
 	u16 ret = 0;
-
+	u8 temp0 = 0;
+	u8 temp_buf[32];
+	
 	user_data_sign_out.AFN = afn;
 	user_data_out.num = 1;
 	user_data_out.data_unit[0].pn_fn.pn = 0;
 	user_data_out.data_unit[0].pn_fn.fn = fn;
 
-	switch(fn)
+//	switch(fn)
+//	{
+//		case 1:		//登录
+//			user_data_out.data_unit[0].len = 28;
+//			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
+
+//			memcpy(user_data_out.data_unit[0].msg + 0, DeviceInfo.iccid,20);
+//			memcpy(user_data_out.data_unit[0].msg + 20,DeviceInfo.protocol_ver,8);
+//		break;
+
+//		case 2:		//退出登录
+//			user_data_out.data_unit[0].len = 0;
+//			user_data_out.data_unit[0].msg = NULL;
+//		break;
+
+//		case 3:		//心跳
+//			user_data_out.data_unit[0].len = 0;
+//			user_data_out.data_unit[0].msg = NULL;
+//		break;
+
+//		case 13:
+//			user_data_out.data_unit[0].len = 4;
+//			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
+
+//			*(user_data_out.data_unit[0].msg + 0) = (u8)(FrameWareState.total_bags & 0x00FF);
+//			*(user_data_out.data_unit[0].msg + 1) = (u8)(FrameWareState.total_bags >> 8);
+//			*(user_data_out.data_unit[0].msg + 2) = (u8)(FrameWareState.current_bag_cnt & 0x00FF);
+//			*(user_data_out.data_unit[0].msg + 3) = (u8)(FrameWareState.current_bag_cnt >> 8);
+//		default:
+//		break;
+//	}
+	
+	if(afn == 0x02 && fn == 1)			//登录
 	{
-		case 1:		//登录
-			user_data_out.data_unit[0].len = 28;
-			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
+		user_data_out.data_unit[0].len = 28;
+		user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
 
-			memcpy(user_data_out.data_unit[0].msg + 0, DeviceInfo.iccid,20);
-			memcpy(user_data_out.data_unit[0].msg + 20,DeviceInfo.protocol_ver,8);
-		break;
+		memcpy(user_data_out.data_unit[0].msg + 0, DeviceInfo.iccid,20);
+		memcpy(user_data_out.data_unit[0].msg + 20,DeviceInfo.protocol_ver,8);
+	}
+	else if(afn == 0x02 && fn == 2)		//退出登录
+	{
+		user_data_out.data_unit[0].len = 0;
+		user_data_out.data_unit[0].msg = NULL;
+	}
+	else if(afn == 0x02 && fn == 3)		//心跳
+	{
+		user_data_out.data_unit[0].len = 0;
+		user_data_out.data_unit[0].msg = NULL;
+	}
+	else if(afn == 0x0E && fn == 2)		//事件上报
+	{
+		xSemaphoreTake(xMutex_EVENT_RECORD, portMAX_DELAY);
+		
+		switch(EventRecordList.lable1[EventRecordList.ec1 - EventRecordList.important_event_flag])
+		{
+			case 15:
+				temp0 = 14;	//当前事件所占内存长度
+			break;
 
-		case 2:		//退出登录
-			user_data_out.data_unit[0].len = 0;
-			user_data_out.data_unit[0].msg = NULL;
-		break;
+			case 16:
+				temp0 = 14;
+			break;
 
-		case 3:		//心跳
-			user_data_out.data_unit[0].len = 0;
-			user_data_out.data_unit[0].msg = NULL;
-		break;
+			case 17:
+				temp0 = 12;
+			break;
 
-		case 13:
-			user_data_out.data_unit[0].len = 4;
-			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
+			case 18:
+				temp0 = 12;
+			break;
 
-			*(user_data_out.data_unit[0].msg + 0) = (u8)(FrameWareState.total_bags & 0x00FF);
-			*(user_data_out.data_unit[0].msg + 1) = (u8)(FrameWareState.total_bags >> 8);
-			*(user_data_out.data_unit[0].msg + 2) = (u8)(FrameWareState.current_bag_cnt & 0x00FF);
-			*(user_data_out.data_unit[0].msg + 3) = (u8)(FrameWareState.current_bag_cnt >> 8);
-		default:
-		break;
+			case 19:
+				temp0 = 15;
+			break;
+
+			case 20:
+				temp0 = 15;
+			break;
+
+			case 21:
+				temp0 = 17;
+			break;
+
+			case 22:
+				temp0 = 17;
+			break;
+
+			case 23:
+				temp0 = 17;
+			break;
+
+			case 28:
+				temp0 = 21;
+			break;
+
+			case 36:
+				temp0 = 16;
+			break;
+
+			case 37:
+				temp0 = 11;
+			break;
+
+			case 51:
+				temp0 = 17;
+			break;
+
+			case 52:
+				temp0 = 22;
+			break;
+
+			default:
+			break;
+		}
+		
+		user_data_out.data_unit[0].len = temp0 + 4;
+		user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
+		
+		*(user_data_out.data_unit[0].msg + 0) = EventRecordList.ec1;
+		*(user_data_out.data_unit[0].msg + 1) = 0x00;
+		*(user_data_out.data_unit[0].msg + 2) = EventRecordList.ec1 - 2;
+		*(user_data_out.data_unit[0].msg + 3) = EventRecordList.ec1 - 1;
+
+		ret = ReadDataFromEepromToMemory(temp_buf,
+		                                 E_IMPORTEAT_ADD + 
+		                                 (EventRecordList.ec1 - EventRecordList.important_event_flag) * 
+		                                 EVENT_LEN,EVENT_LEN);	//从EEPROM中读取时间内容
+
+		if(ret == 1)
+		{
+			memcpy(user_data_out.data_unit[0].msg + 4,temp_buf,temp0);
+		}
+		else
+		{
+			memset(user_data_out.data_unit[0].msg + 4,0,temp0);					//读取失败 将数据单元清空
+		}
+		
+		EventRecordList.important_event_flag --;
+		
+		xSemaphoreGive(xMutex_EVENT_RECORD);
+	}
+	else if(afn == 0x10 && fn == 13)	//固件升级
+	{
+		user_data_out.data_unit[0].len = 4;
+		user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
+
+		*(user_data_out.data_unit[0].msg + 0) = (u8)(FrameWareState.total_bags & 0x00FF);
+		*(user_data_out.data_unit[0].msg + 1) = (u8)(FrameWareState.total_bags >> 8);
+		*(user_data_out.data_unit[0].msg + 2) = (u8)(FrameWareState.current_bag_cnt & 0x00FF);
+		*(user_data_out.data_unit[0].msg + 3) = (u8)(FrameWareState.current_bag_cnt >> 8);
 	}
 
 	ret = CombineCompleteFrame(1,outbuf);
@@ -1503,16 +1637,16 @@ u16 UserDataUnitHandle(void)
 								{
 									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 0)  = (u8)(LampsParameters.parameters[j].lamps_id & 0x00FF);
 									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 1)  = (u8)(LampsParameters.parameters[j].lamps_id >> 8);		//填写灯具序号
-									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 2)  = LampsParameters.parameters[j].type;					//类型
+									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 2)  = LampsParameters.parameters[j].type;						//类型
 									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 3)  = (u8)(LampsParameters.parameters[j].power & 0x00FF);
-									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 4)  = (u8)(LampsParameters.parameters[j].power >> 8);		//功率
+									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 4)  = (u8)(LampsParameters.parameters[j].power >> 8);			//功率
 									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 5)  = (u8)(LampsParameters.parameters[j].pf & 0x00FF);
-									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 6)  = (u8)(LampsParameters.parameters[j].pf >> 8);			//功率因数
-									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 7)  = LampsParameters.parameters[j].enable;					//启用标志
+									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 6)  = (u8)(LampsParameters.parameters[j].pf >> 8);				//功率因数
+									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 7)  = LampsParameters.parameters[j].enable;						//启用标志
 									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 8)  = LampsParameters.parameters[j].line_id;					//出线序号
-									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 9)  = LampsParameters.parameters[j].a_b_c;					//所处相别
+									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 9)  = LampsParameters.parameters[j].a_b_c;						//所处相别
 									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 10) = (u8)(LampsParameters.parameters[j].pole_number & 0x00FF);
-									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 11) = (u8)(LampsParameters.parameters[j].pole_number >> 8);	//所在杆号
+									*(user_data_out.data_unit[i].msg + 2 + k * 12 + 11) = (u8)(LampsParameters.parameters[j].pole_number >> 8);		//所在杆号
 
 									j = 0xFF;			//找到序号为temp3的灯具成功标志
 								}
@@ -1721,11 +1855,11 @@ u16 UserDataUnitHandle(void)
 				temp3 = E_NORMAL_ADD;
 			}
 
-			if(*(msg + 0) <= *(msg + 1))
+			if(*(msg + 0) < *(msg + 1))
 			{
 				temp2 = 0;
 
-				for(i = *(msg + 0); i <= *(msg + 1); i ++)
+				for(i = *(msg + 0); i < *(msg + 1); i ++)
 				{
 					switch(*(msg1 + i))
 					{
@@ -1794,7 +1928,7 @@ u16 UserDataUnitHandle(void)
 			{
 				temp2 = 0;
 
-				for(i = 0; i <= *(msg + 1); i ++)
+				for(i = 0; i < *(msg + 1); i ++)
 				{
 					switch(*(msg1 + i))
 					{
@@ -1934,9 +2068,9 @@ u16 UserDataUnitHandle(void)
 
 			temp6 = 0;	//每一个事件之间的偏移地址
 
-			if(*(msg + 0) <= *(msg + 1))
+			if(*(msg + 0) < *(msg + 1))
 			{
-				for(i = *(msg + 0); i <= *(msg + 1); i ++)
+				for(i = *(msg + 0); i < *(msg + 1); i ++)
 				{
 					memset(temp_buf,0,32);
 
@@ -2002,23 +2136,28 @@ u16 UserDataUnitHandle(void)
 						break;
 					}
 
-					ret = ReadDataFromEepromToMemory(temp_buf,temp3 + i * EVENT_LEN,EVENT_LEN);		//从EEPROM中读取时间内容
-
-					if(ret == 1)
+					if(temp0 != 0)
 					{
-						memcpy(user_data_out.data_unit[0].msg + 4 + temp6,temp_buf,temp0);			//读取成功 将时间内容放入数据单元
-					}
-					else
-					{
-						memset(user_data_out.data_unit[0].msg + 4 + temp6,0,temp0);					//读取失败 将数据单元清空
-					}
+						ret = ReadDataFromEepromToMemory(temp_buf,temp3 + i * EVENT_LEN,EVENT_LEN);		//从EEPROM中读取时间内容
 
-					temp6 += temp0;
+						if(ret == 1)
+						{
+							memcpy(user_data_out.data_unit[0].msg + 4 + temp6,temp_buf,temp0);			//读取成功 将时间内容放入数据单元
+						}
+						else
+						{
+							memset(user_data_out.data_unit[0].msg + 4 + temp6,0,temp0);					//读取失败 将数据单元清空
+						}
+
+						temp6 += temp0;
+						
+						temp0 = 0;
+					}
 				}
 			}
 			else
 			{
-				for(i = 0; i <= *(msg + 1); i ++)
+				for(i = 0; i < *(msg + 1); i ++)
 				{
 					memset(temp_buf,0,32);
 
@@ -2084,18 +2223,23 @@ u16 UserDataUnitHandle(void)
 						break;
 					}
 
-					ret = ReadDataFromEepromToMemory(temp_buf,temp3 + i * EVENT_LEN,EVENT_LEN);		//从EEPROM中读取时间内容
-
-					if(ret == 1)
+					if(temp0 != 0)
 					{
-						memcpy(user_data_out.data_unit[0].msg + 4 + temp6,temp_buf,temp0);			//读取成功 将时间内容放入数据单元
-					}
-					else
-					{
-						memset(user_data_out.data_unit[0].msg + 4 + temp6,0,temp0);					//读取失败 将数据单元清空
-					}
+						ret = ReadDataFromEepromToMemory(temp_buf,temp3 + i * EVENT_LEN,EVENT_LEN);		//从EEPROM中读取时间内容
 
-					temp6 += temp0;
+						if(ret == 1)
+						{
+							memcpy(user_data_out.data_unit[0].msg + 4 + temp6,temp_buf,temp0);			//读取成功 将时间内容放入数据单元
+						}
+						else
+						{
+							memset(user_data_out.data_unit[0].msg + 4 + temp6,0,temp0);					//读取失败 将数据单元清空
+						}
+
+						temp6 += temp0;
+						
+						temp0 = 0;
+					}
 				}
 
 				for(i = *(msg + 0); i <= 255; i ++)
@@ -2164,18 +2308,23 @@ u16 UserDataUnitHandle(void)
 						break;
 					}
 
-					ret = ReadDataFromEepromToMemory(temp_buf,temp3 + i * EVENT_LEN,EVENT_LEN);		//从EEPROM中读取时间内容
-
-					if(ret == 1)
+					if(temp0 != 0)
 					{
-						memcpy(user_data_out.data_unit[0].msg + 4 + temp6,temp_buf,temp0);			//读取成功 将时间内容放入数据单元
-					}
-					else
-					{
-						memset(user_data_out.data_unit[0].msg + 4 + temp6,0,temp0);					//读取失败 将数据单元清空
-					}
+						ret = ReadDataFromEepromToMemory(temp_buf,temp3 + i * EVENT_LEN,EVENT_LEN);		//从EEPROM中读取时间内容
 
-					temp6 += temp0;
+						if(ret == 1)
+						{
+							memcpy(user_data_out.data_unit[0].msg + 4 + temp6,temp_buf,temp0);			//读取成功 将时间内容放入数据单元
+						}
+						else
+						{
+							memset(user_data_out.data_unit[0].msg + 4 + temp6,0,temp0);					//读取失败 将数据单元清空
+						}
+
+						temp6 += temp0;
+						
+						temp0 = 0;
+					}
 				}
 			}
 		break;
@@ -2315,7 +2464,8 @@ u16 UserDataUnitHandle(void)
 					temp3 = ((((u16)(*(msg + 3))) << 8) + (u16)(*(msg + 2)));		//当前分包数
 					temp6 = ((((u16)(*(msg + 5))) << 8) + (u16)(*(msg + 4)));		//包大小
 
-					if(temp2 != FrameWareState.total_bags)	//总包数匹配错误
+					if(temp2 != FrameWareState.total_bags || 
+					   temp3 > FrameWareState.total_bags)	//总包数匹配错误
 					{
 						break;
 					}
@@ -2324,7 +2474,7 @@ u16 UserDataUnitHandle(void)
 
 					crc_read = (((u16)(*(msg + temp6 - 2))) << 8) + (u16)(*(msg + temp6 - 1));
 
-					crc_cal = CRC16(msg,temp6 - 2,1);
+					crc_cal = GetCRC16(msg,temp6 - 2);
 
 					if(crc_cal == crc_read)
 					{
@@ -2434,7 +2584,7 @@ u16 NetDataFrameHandle(u8 *inbuf,u16 inbuf_len,u8 *outbuf)
 	u16 crc16_cal = 0;
 	u8 *msg = NULL;
 	u8 need_rsp = 1;
-	u8 default_mail_id[8] = {0x00,0x11,0x20,0x01,0x00,0x00,0x00,0x20};	//设备缺省通信地址
+	u8 default_mail_id[8] = {0x00,0x29,0x20,0x01,0x00,0x00,0x00,0x20};	//设备缺省通信地址
 
 	if(inbuf_len > MAX_FRAME_LEN)				//报文总长度超限
 	{
@@ -2449,7 +2599,7 @@ u16 NetDataFrameHandle(u8 *inbuf,u16 inbuf_len,u8 *outbuf)
 	}
 
 	crc16_recv = (((u16)*(inbuf + inbuf_len - 3)) << 8) + (u16)*(inbuf + inbuf_len - 2);
-	crc16_cal = CRC16(&*(inbuf + 6),inbuf_len - 9,1);
+	crc16_cal = GetCRC16(&*(inbuf + 6),inbuf_len - 9);
 
 	if(crc16_recv != crc16_cal)					//CRC校验失败
 	{
