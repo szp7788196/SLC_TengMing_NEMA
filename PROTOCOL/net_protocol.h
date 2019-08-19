@@ -299,6 +299,7 @@ typedef struct EventRecordList				//事件记录表
 	u8 lable2[256];							//一般事件标签
 	
 	u8 important_event_flag;				//系统中有重要事件标志
+	u8 normal_event_flag;					//系统中有一般事件标志
 }EventRecordList_S;
 
 typedef struct FTP_ServerInfo				//FTP升级服务器信息
@@ -347,6 +348,7 @@ extern UserDataSign_S user_data_sign_out;
 extern UserData_S user_data_out;
 
 extern u8 LogInOutState;				//登录状态
+extern u8 NeedServerConfirm;			//需要主站确认
 
 
 void ResetFrameStruct(u8 mode,

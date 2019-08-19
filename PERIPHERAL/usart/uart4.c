@@ -9,6 +9,7 @@
 #include "m53xx.h"
 #include "at_cmd.h"
 #include "task_net.h"
+#include "usart.h"
 
 
 volatile char rsp_ok=0;
@@ -18,7 +19,7 @@ uint8_t rx_fifo[1024];
 uint8_t rx_fifo1[1024];
 int8_t dl_buf_id = -1;
 
-FIFO(dl_buf,1,1024);
+FIFO(dl_buf,3,1024);			//此处第二个形参不可以为1，否则会出现注册失败问题，建议>=2(2019/08/13常州出差解决)
 
 #define UART_DMA 1
 #define MAX_RCV_LEN 1024
@@ -44,12 +45,14 @@ void UART4_Write(uint8_t *Data, uint32_t len)
 
     USART_ClearFlag(UART4, USART_FLAG_TC);
 
-    for(i = 0; i < len; i++)
-    {
-        USART_SendData(UART4, *Data++);
+//    for(i = 0; i < len; i++)
+//    {
+//        USART_SendData(UART4, *Data++);
 
-        while( USART_GetFlagStatus(UART4, USART_FLAG_TC) == RESET );
-    }
+//        while( USART_GetFlagStatus(UART4, USART_FLAG_TC) == RESET );
+//    }
+	
+	UsartSendString(UART4,Data,len);
 
 #else
     DMA_InitTypeDef DMA_InitStruct;
@@ -63,7 +66,7 @@ void UART4_Write(uint8_t *Data, uint32_t len)
     DMA_InitStruct.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
     DMA_InitStruct.DMA_MemoryDataSize = DMA_PeripheralDataSize_Byte;
     DMA_InitStruct.DMA_Mode = DMA_Mode_Normal;
-    DMA_InitStruct.DMA_Priority = DMA_Priority_VeryHigh;
+    DMA_InitStruct.DMA_Priority = DMA_Priority_High;
     DMA_InitStruct.DMA_M2M = DMA_M2M_Disable;
     DMA_Init(USATx_DMA[4],&DMA_InitStruct);
     DMA_Cmd(USATx_DMA[4],ENABLE);
@@ -135,7 +138,7 @@ void UART4_Init(u32 bound)
 	//设置DMA的传输模式
 	DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
 	//设置DMA的优先级别
-	DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+	DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
 	//设置DMA的2个memory中的变量互相访问
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 	DMA_Init(USARx_DMA[4],&DMA_InitStructure);
@@ -190,14 +193,14 @@ void UART4_IRQHandler(void)
 		{
 			fifo_put(dl_buf_id,ringbuf_elements(&ring_fifo),ring_fifo.data);
 		}
-		else if((uint8_t *)strstr((const char *)ring_fifo.data, "+CEREG:0") != NULL)
-		{
+//		else if((uint8_t *)strstr((const char *)ring_fifo.data, "+CEREG:0") != NULL)
+//		{
 
-		}
-		else if((uint8_t *)strstr((const char *)ring_fifo.data, "+CEREG:1") != NULL)
-		{
+//		}
+//		else if((uint8_t *)strstr((const char *)ring_fifo.data, "+CEREG:1") != NULL)
+//		{
 
-		}
+//		}
 		else
 		{
 			rsp_ok = 1;

@@ -18,8 +18,8 @@ CONNECT_STATE_E ConnectState = UNKNOW_STATE;	//连接状态
 
 nbiot_device_t *dev = NULL;
 
-nbiot_value_t LinkLayerDownPacketCarrier;			//数据链路层数据包载体 Opaque  3200 0 5501
-nbiot_value_t LinkLayerUpPacketCarrier;				//数据链路层数据包载体 Opaque  3200 0 5505
+nbiot_value_t LinkLayerDownPacketCarrier;			//数据链路层数据包载体 hexstring  objectID:3200 instanceID:0 resourceID:5501 (下行数据)
+nbiot_value_t LinkLayerUpPacketCarrier;				//数据链路层数据包载体 hexstring  objectID:3200 instanceID:0 resourceID:5505 (上行数据)
 
 void write_callback( uint16_t       objid,
                      uint16_t       instid,
@@ -98,6 +98,7 @@ void execute_callback( uint16_t       objid,
 void res_update(void)
 {
 	static time_t times_sec = 0;
+	static time_t times_sec1 = 0;
 	static u16 download_time_out = 0;
 	static u8  download_failed_times = 0;
 	u8 buf[64];
@@ -106,7 +107,20 @@ void res_update(void)
 	u8 fn = 0;
 	u16 len = 0;
 
-	if(LogInOutState == 0x00)		//未登录，发送登陆数据包
+	if(NeedServerConfirm != 0)			//有需要被主站确认的消息,重发上一条数据
+	{	
+		if(GetSysTick1s() - times_sec1 >= UpCommPortPara.wait_slave_rsp_timeout)
+		{
+			times_sec1 = GetSysTick1s();
+			
+			NeedServerConfirm --;
+			
+			LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;				//数据上传标志置位
+		}
+
+		return;
+	}
+	else if(LogInOutState == 0x00)		//未登录，发送登陆数据包
 	{
 		if(times_sec == 0)
 		{
@@ -150,9 +164,10 @@ void res_update(void)
 
 		LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
 	}
-	else if(EventRecordList.important_event_flag != 0)
+	else if(EventRecordList.important_event_flag != 0 ||
+		    EventRecordList.normal_event_flag != 0)
 	{
-//		EventRecordList.important_event_flag = 0;
+		times_sec1 = GetSysTick1s();
 		
 		afn = 0x0E;
 		fn = 2;
@@ -311,7 +326,7 @@ u8 SyncDataTimeFormBcxxModule(time_t sync_cycle)
 void vTaskNET(void *pvParameters)
 {
 	int ret = 0;
-	u16 off_line_time_out = 0;
+	time_t time_s = 0;
 	time_t sync_csq_time = nbiot_time();
 
 	GetTimeOK = GetRTC_State();		//获取RTC实时时钟状态
@@ -368,24 +383,20 @@ void vTaskNET(void *pvParameters)
 		 printf( "connect OneNET success.\r\n" );
 #endif
 	}
+	
+	time_s = GetSysTick1s();
 
 	while(1)
 	{
-		if(ConnectState != ON_SERVER)
+		if(dev->observes == NULL)
 		{
-			if((off_line_time_out ++) >= 2500)	//设备离线约4~5分钟内不回复则重启M5310-A模组
+			if(GetSysTick1s() - time_s >= 180)	//设备离线约3分钟内不回复则重启M5310-A模组
 			{
-				off_line_time_out = 0;
-
 				goto RE_INIT_M53XX;
 			}
 		}
-		else
-		{
-			off_line_time_out = 0;
-		}
 
-		if(ConnectState == ON_SERVER)
+		if(dev->observes != NULL)
 		{
 			if(nbiot_time() - sync_csq_time >= 30)
 			{
@@ -416,15 +427,8 @@ void vTaskNET(void *pvParameters)
 		}
 		else
 		{
-			if(ConnectState == ON_SERVER)
+			if(dev->observes != NULL)
 			{
-				if(dev->observes == NULL)
-				{
-					unregister_all_things();
-
-					goto RE_INIT_M53XX;
-				}
-
 				res_update();	//向服务器发送数据包
 			}
 		}

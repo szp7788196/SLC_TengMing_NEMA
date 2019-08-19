@@ -19,6 +19,7 @@ UserDataSign_S user_data_sign_out;
 UserData_S user_data_out;
 
 u8 LogInOutState = 0x00;				//登录状态
+u8 NeedServerConfirm = 0;				//需要主站确认
 
 //复位报文结构体变量
 void ResetFrameStruct(u8 mode,
@@ -248,7 +249,7 @@ u16 CombineUserData(u8 *u_data)
 		{
 			return 0;
 		}
-		
+
 		SplitDataUnitSign(user_data_out.data_unit[i].pn_fn.pn,
 						  user_data_out.data_unit[i].pn_fn.fn,
 						  u_data + pos + 0,
@@ -293,7 +294,7 @@ u16 CombineCompleteFrame(u8 prm, u8 *outbuf)
 	CombineControlMsg(prm,outbuf + 6);			//控制域从第6字节开始
 
 	ret = CombineUserData(outbuf + 6 + 12);		//用户数据域从第18字节开始
-	
+
 	if(ret == 0)								//数据单元长度超限,直接释放掉数据单元内存
 	{
 		goto FREE_DATA_UNIT;
@@ -338,44 +339,17 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 	u16 ret = 0;
 	u8 temp0 = 0;
 	u8 temp_buf[32];
-	
+	u8 fn_really = 1;
+	u16 e_event_add = E_IMPORTEAT_ADD;
+	u8 *event_lable = EventRecordList.lable1;
+	u8 ecx = EventRecordList.ec1;
+	u8 ec_flag = EventRecordList.important_event_flag;
+
 	user_data_sign_out.AFN = afn;
 	user_data_out.num = 1;
 	user_data_out.data_unit[0].pn_fn.pn = 0;
 	user_data_out.data_unit[0].pn_fn.fn = fn;
 
-//	switch(fn)
-//	{
-//		case 1:		//登录
-//			user_data_out.data_unit[0].len = 28;
-//			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
-
-//			memcpy(user_data_out.data_unit[0].msg + 0, DeviceInfo.iccid,20);
-//			memcpy(user_data_out.data_unit[0].msg + 20,DeviceInfo.protocol_ver,8);
-//		break;
-
-//		case 2:		//退出登录
-//			user_data_out.data_unit[0].len = 0;
-//			user_data_out.data_unit[0].msg = NULL;
-//		break;
-
-//		case 3:		//心跳
-//			user_data_out.data_unit[0].len = 0;
-//			user_data_out.data_unit[0].msg = NULL;
-//		break;
-
-//		case 13:
-//			user_data_out.data_unit[0].len = 4;
-//			user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
-
-//			*(user_data_out.data_unit[0].msg + 0) = (u8)(FrameWareState.total_bags & 0x00FF);
-//			*(user_data_out.data_unit[0].msg + 1) = (u8)(FrameWareState.total_bags >> 8);
-//			*(user_data_out.data_unit[0].msg + 2) = (u8)(FrameWareState.current_bag_cnt & 0x00FF);
-//			*(user_data_out.data_unit[0].msg + 3) = (u8)(FrameWareState.current_bag_cnt >> 8);
-//		default:
-//		break;
-//	}
-	
 	if(afn == 0x02 && fn == 1)			//登录
 	{
 		user_data_out.data_unit[0].len = 28;
@@ -394,18 +368,40 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 		user_data_out.data_unit[0].len = 0;
 		user_data_out.data_unit[0].msg = NULL;
 	}
-	else if(afn == 0x0E && fn == 2)		//事件上报
+	else if(afn == 0x0E && (fn == 1 || fn == 2))		//事件上报
 	{
+		if(NeedServerConfirm == 0)
+		{
+			NeedServerConfirm = UpCommPortPara.master_retry_times;
+		}
+
 		xSemaphoreTake(xMutex_EVENT_RECORD, portMAX_DELAY);
 		
-		switch(EventRecordList.lable1[EventRecordList.ec1 - EventRecordList.important_event_flag])
+		if(EventRecordList.normal_event_flag != 0)
+		{
+			e_event_add = E_NORMAL_ADD;
+			event_lable = EventRecordList.lable2;
+			ecx = EventRecordList.ec2;
+			ec_flag = EventRecordList.normal_event_flag;
+		}
+		else if(EventRecordList.important_event_flag != 0)
+		{
+			e_event_add = E_IMPORTEAT_ADD;
+			event_lable = EventRecordList.lable1;
+			ecx = EventRecordList.ec1;
+			ec_flag = EventRecordList.important_event_flag;
+		}
+		
+		switch(event_lable[ecx - ec_flag])
 		{
 			case 15:
-				temp0 = 14;	//当前事件所占内存长度
+				temp0 = 14;		//当前事件所占内存长度
+				fn_really = 2;	//一般事件Fn
 			break;
 
 			case 16:
 				temp0 = 14;
+				fn_really = 2;
 			break;
 
 			case 17:
@@ -438,6 +434,7 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 
 			case 28:
 				temp0 = 21;
+				fn_really = 2;
 			break;
 
 			case 36:
@@ -454,23 +451,26 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 
 			case 52:
 				temp0 = 22;
+				fn_really = 2;
 			break;
 
 			default:
 			break;
 		}
 		
+		user_data_out.data_unit[0].pn_fn.fn = fn_really;
+
 		user_data_out.data_unit[0].len = temp0 + 4;
 		user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
-		
+
 		*(user_data_out.data_unit[0].msg + 0) = EventRecordList.ec1;
-		*(user_data_out.data_unit[0].msg + 1) = 0x00;
-		*(user_data_out.data_unit[0].msg + 2) = EventRecordList.ec1 - 2;
-		*(user_data_out.data_unit[0].msg + 3) = EventRecordList.ec1 - 1;
+		*(user_data_out.data_unit[0].msg + 1) = EventRecordList.ec2;
+		*(user_data_out.data_unit[0].msg + 2) = ecx - 1;
+		*(user_data_out.data_unit[0].msg + 3) = ecx;
 
 		ret = ReadDataFromEepromToMemory(temp_buf,
-		                                 E_IMPORTEAT_ADD + 
-		                                 (EventRecordList.ec1 - EventRecordList.important_event_flag) * 
+		                                 e_event_add +
+		                                 (ecx - ec_flag) *
 		                                 EVENT_LEN,EVENT_LEN);	//从EEPROM中读取时间内容
 
 		if(ret == 1)
@@ -481,9 +481,16 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 		{
 			memset(user_data_out.data_unit[0].msg + 4,0,temp0);					//读取失败 将数据单元清空
 		}
-		
-		EventRecordList.important_event_flag --;
-		
+
+		if(EventRecordList.normal_event_flag != 0)
+		{
+			EventRecordList.normal_event_flag --;
+		}
+		else if(EventRecordList.important_event_flag != 0)
+		{
+			EventRecordList.important_event_flag --;
+		}
+
 		xSemaphoreGive(xMutex_EVENT_RECORD);
 	}
 	else if(afn == 0x10 && fn == 13)	//固件升级
@@ -507,7 +514,7 @@ void CombineDataUnitSign(u8 da1,u8 da2,u8 dt1,u8 dt2,u16 *pn,u16 *fn)
 {
 	u8 i = 0;
 
-	if(da2 >= 1 && da2 == 0)
+	if(da2 >= 1 && da1 == 0)
 	{
 		da2 --;
 	}
@@ -986,14 +993,18 @@ u16 UserDataUnitHandle(void)
 			{
 				msg = user_data_in.data_unit[i].msg;
 
-				if(LogInOutState == 0x00)
-				{
-					LogInOutState = 0x01;				//登录腾明平台成功
-				}
-
 				switch(user_data_in.data_unit[i].pn_fn.fn)
 				{
 					case 1:
+						if(LogInOutState == 0x00)
+						{
+							LogInOutState = 0x01;			//登录腾明平台成功
+						}
+						
+						if(NeedServerConfirm != 0)			//有需要被主站确认的消息
+						{
+							NeedServerConfirm = 0;
+						}
 
 					break;
 
@@ -1800,6 +1811,11 @@ u16 UserDataUnitHandle(void)
 					break;
 
 					case 69:
+						if(user_data_in.data_unit[i].pn_fn.pn == 0)
+						{
+							user_data_out.data_unit[i].pn_fn.pn = 9;
+						}
+						
 						user_data_out.data_unit[i].len = 24;
 						user_data_out.data_unit[i].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[i].len);
 
@@ -2150,7 +2166,7 @@ u16 UserDataUnitHandle(void)
 						}
 
 						temp6 += temp0;
-						
+
 						temp0 = 0;
 					}
 				}
@@ -2237,7 +2253,7 @@ u16 UserDataUnitHandle(void)
 						}
 
 						temp6 += temp0;
-						
+
 						temp0 = 0;
 					}
 				}
@@ -2322,7 +2338,7 @@ u16 UserDataUnitHandle(void)
 						}
 
 						temp6 += temp0;
-						
+
 						temp0 = 0;
 					}
 				}
@@ -2464,7 +2480,7 @@ u16 UserDataUnitHandle(void)
 					temp3 = ((((u16)(*(msg + 3))) << 8) + (u16)(*(msg + 2)));		//当前分包数
 					temp6 = ((((u16)(*(msg + 5))) << 8) + (u16)(*(msg + 4)));		//包大小
 
-					if(temp2 != FrameWareState.total_bags || 
+					if(temp2 != FrameWareState.total_bags ||
 					   temp3 > FrameWareState.total_bags)	//总包数匹配错误
 					{
 						break;

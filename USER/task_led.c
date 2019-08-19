@@ -22,18 +22,32 @@ void vTaskLED(void *pvParameters)
 		
 		if(dev->state == STATE_REGISTERED)		//在线状态，每3秒短闪一次
 		{
-			if(cnt % 300 == 0)
+			if(dev->observes == NULL)		//更新请求中，每3秒短闪一次
 			{
-				led_state = 1;
+				if(cnt % 100 == 0)
+				{
+					led_state = 1;
+				}
+				else
+				{
+					led_state = 0;
+				}
 			}
 			else
 			{
-				led_state = 0;
+				if(cnt % 300 == 0)
+				{
+					led_state = 1;
+				}
+				else
+				{
+					led_state = 0;
+				}
 			}
 		}
 		else if(dev->state == STATE_REG_UPDATE_PENDING)		//更新请求中，每3秒短闪一次
 		{
-			if(cnt % 100 == 0)
+			if(cnt % 50 == 0)
 			{
 				led_state = 1;
 			}

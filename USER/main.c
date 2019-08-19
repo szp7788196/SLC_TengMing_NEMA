@@ -56,6 +56,9 @@ int main(void)
 
 //	AT24CXX_WriteLenByte(E_FW_UPDATE_STATE_ADD + E_FW_UPDATE_STATE_LEN - 2,0xFFFF,2);	//恢复OTA状态信息
 
+//	FrameWareState.state = FIRMWARE_FREE;
+//	WriteFrameWareStateToEeprom();
+
 	mem_init();
 
 	IWDG_Feed();				//喂看门狗

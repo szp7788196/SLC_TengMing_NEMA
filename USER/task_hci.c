@@ -59,19 +59,19 @@ u16 HCI_DataAnalysis(u8 *inbuf,u16 inbuf_len,u8 *outbuf)
 		{
 			memset(buf,0,DEV_BASIC_INFO_LEN);
 			
-			StrToHex(buf, (char*)inbuf + 7, 8);
-			StrToHex(buf + 8, (char*)inbuf + 11, 6);
+			StrToHex(buf, (char*)inbuf + 11, 6);
+			StrToHex(buf + 6, (char*)inbuf + 7, 8);
 			
-			if(buf[0] == 0x00 && 
-			   buf[1] == 0x29 && 
-			   buf[2] == 0x20 && 
-			   buf[3] <= 0x99 && 
-			   buf[4] <= 0x99 && 
-			   buf[5] <= 0x99 && 
-			   buf[6] <= 0x99 && 
-			   buf[7] == 0x20)
+			if(buf[6] == 0x00 && 
+			   buf[7] == 0x29 && 
+			   buf[8] == 0x20 && 
+			   buf[9] <= 0x99 && 
+			   buf[10] <= 0x99 && 
+			   buf[11] <= 0x99 && 
+			   buf[12] <= 0x99 && 
+			   buf[13] == 0x20)
 			{
-				memcpy(DeviceBaseInfo.id,buf + 0,6);					//更新设备基本信息
+				memcpy(DeviceBaseInfo.id,buf + 0,6);
 				memcpy(DeviceBaseInfo.mail_add,buf + 6,8);
 				memcpy(DeviceBaseInfo.longitude,buf + 14,5);
 				memcpy(DeviceBaseInfo.latitude,buf + 19,5);
@@ -81,17 +81,17 @@ u16 HCI_DataAnalysis(u8 *inbuf,u16 inbuf_len,u8 *outbuf)
 					                        DEV_BASIC_INFO_LEN - 2);	//存入EEPROM
 				
 				memset(temp_buf,0,32);
-				HexToStr((char*)temp_buf,&buf[0],7);
+				HexToStr((char*)temp_buf,DeviceBaseInfo.mail_add,7);
 				sprintf((char*)outbuf,"{\"LTUAddr\":\"%s\",",temp_buf);
 				
 				strcat((char*)outbuf,"\"No\":\"");
 				memset(temp_buf,0,32);
-				HexToStr(temp_buf,&buf[8],6);
+				HexToStr(temp_buf,DeviceBaseInfo.id,6);
 				strcat((char*)outbuf,temp_buf);
 				strcat((char*)outbuf,"\",");
 				
 				strcat((char*)outbuf,"\"Type\":\"20\",");
-				strcat((char*)outbuf,"\"Provider\":\"NN\",");
+				strcat((char*)outbuf,"\"Provider\":\"LK\",");
 				
 				memset(temp_buf,0,32);
 				memcpy(temp_buf,DeviceInfo.iccid,20);

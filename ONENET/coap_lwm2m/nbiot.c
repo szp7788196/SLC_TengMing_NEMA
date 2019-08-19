@@ -34,8 +34,13 @@ int nbiot_device_create( nbiot_device_t         **dev,
     *dev = tmp;
 
     tmp->next_mid = nbiot_rand();
-    tmp->first_mid= tmp->next_mid;
+    tmp->first_mid = tmp->next_mid;
+	tmp->state = STATE_DEREGISTERED;
     tmp->life_time = life_time;
+	tmp->registraction = 0;
+	tmp->nodes = NULL;
+	tmp->observes = NULL;
+	tmp->transactions = NULL;
     tmp->write_func = write_func;
     tmp->read_func = read_func;
     tmp->execute_func = execute_func;
@@ -621,7 +626,9 @@ static void nbiot_handle_buffer( nbiot_device_t *dev,
                                  size_t          buffer_len,
                                  size_t          max_buffer_len )
 {
-	uint16_t code = 0;
+	uint16_t code[6] = {0,0,0,0,0,0};
+	uint16_t code_now = 0;
+	uint8_t k = 0;
 	char *read = NULL,*write = NULL,*excute = NULL;
 	char *discover = NULL,*observe = NULL,*event = NULL;
 
@@ -633,37 +640,42 @@ static void nbiot_handle_buffer( nbiot_device_t *dev,
 	event = strstr((const char *)buffer, "+MIPLEVENT");
 
 	if(read != NULL)
-		code = COAP_READ;
-	else if(write != NULL)
-		code = COAP_WRITE;
-	else if(excute != NULL)
-		code = COAP_EXECUTE;
-	else if(discover != NULL)
-		code = COAP_DISCOVER;
-	else if(observe != NULL)
-		code = COAP_OBSERVE;
-	else if(event != NULL)
-		code = COAP_EVENT;
+		code[0] = COAP_READ;
+	if(write != NULL)
+		code[1] = COAP_WRITE;
+	if(excute != NULL)
+		code[2] = COAP_EXECUTE;
+	if(discover != NULL)
+		code[3] = COAP_DISCOVER;
+	if(observe != NULL)
+		code[4] = COAP_OBSERVE;
+	if(event != NULL)
+		code[5] = COAP_EVENT;
 
-	if(COAP_READ <= code && code <= COAP_EXECUTE)//下行命令
+	for(k = 0; k < 6; k ++)
 	{
-		if(dev->state == STATE_REGISTERED ||
-		   dev->state == STATE_REG_UPDATE_PENDING ||
-		   dev->state ==STATE_REG_UPDATE_NEEDED ||
-		   dev->state ==STATE_DEREG_PENDING)
-			handle_request(dev,
-			               code,
-			               buffer,
-			               buffer_len,
-			               max_buffer_len);
-	}
-	else //observer或者注册状态回复
-	{
-		handle_transaction(dev,
-		                   code,
-		                   buffer,
-		                   buffer_len,
-		                   max_buffer_len);
+		code_now = code[k];
+		
+		if(COAP_READ <= code_now && code_now <= COAP_EXECUTE)//下行命令
+		{
+			if(dev->state == STATE_REGISTERED ||
+			   dev->state == STATE_REG_UPDATE_PENDING ||
+			   dev->state ==STATE_REG_UPDATE_NEEDED ||
+			   dev->state ==STATE_DEREG_PENDING)
+				handle_request(dev,
+							   code_now,
+							   buffer,
+							   buffer_len,
+							   max_buffer_len);
+		}
+		else if(code_now != 0)								//observer或者注册状态回复
+		{
+			handle_transaction(dev,
+							   code_now,
+							   buffer,
+							   buffer_len,
+							   max_buffer_len);
+		}
 	}
 }
 

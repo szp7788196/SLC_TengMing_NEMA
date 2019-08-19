@@ -14,8 +14,6 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 		xSemaphoreTake(xMutex_EVENT_RECORD, portMAX_DELAY);
 	}
 
-	add_pos = E_IMPORTEAT_ADD;
-
 	memset(buf,0,24);
 
 	buf[0] = ecx;						//事件代号
@@ -28,22 +26,50 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 
 	buf[22] = (u8)(crc_cal >> 8);
 	buf[23] = (u8)(crc_cal & 0x00FF);
+	
+	if(ecx == 15 ||
+	   ecx == 16 ||
+	   ecx == 28 ||
+	   ecx == 52)			//一般事件
+	{
+		add_pos = E_NORMAL_ADD;
+		
+		EventRecordList.lable2[EventRecordList.ec2] = ecx;	//更新事件列表
 
-	EventRecordList.lable1[EventRecordList.ec1] = ecx;	//更新事件列表
+		crc_cal = GetCRC16(EventRecordList.lable2,256);
 
-	crc_cal = GetCRC16(EventRecordList.lable1,256);
+		AT24CXX_WriteOneByte(EC2_LABLE_ADD + EventRecordList.ec2,EventRecordList.lable2[EventRecordList.ec2]);
+		AT24CXX_WriteOneByte(EC2_LABLE_ADD + 256,(u8)(crc_cal >> 8));
+		AT24CXX_WriteOneByte(EC2_LABLE_ADD + 257,(u8)(crc_cal & 0x00FF));
 
-	AT24CXX_WriteOneByte(EC1_LABLE_ADD + EventRecordList.ec1,EventRecordList.lable1[EventRecordList.ec1]);
-	AT24CXX_WriteOneByte(EC1_LABLE_ADD + 256,(u8)(crc_cal >> 8));
-	AT24CXX_WriteOneByte(EC1_LABLE_ADD + 257,(u8)(crc_cal & 0x00FF));
+		WriteDataFromMemoryToEeprom(buf,add_pos + EventRecordList.ec2 * EVENT_LEN, EVENT_LEN);
 
-	WriteDataFromMemoryToEeprom(buf,add_pos + EventRecordList.ec1 * EVENT_LEN, EVENT_LEN);
+		EventRecordList.ec2 ++;				//更新事件计数器
 
-	EventRecordList.ec1 ++;				//更新事件计数器
+		WriteDataFromMemoryToEeprom(&EventRecordList.ec2,EC2_ADD, 1);
+		
+		EventRecordList.normal_event_flag ++;
+	}
+	else					//重要事件
+	{
+		add_pos = E_IMPORTEAT_ADD;
+		
+		EventRecordList.lable1[EventRecordList.ec1] = ecx;	//更新事件列表
 
-	WriteDataFromMemoryToEeprom(&EventRecordList.ec1,EC1_ADD, 1);
+		crc_cal = GetCRC16(EventRecordList.lable1,256);
 
-	EventRecordList.important_event_flag ++;
+		AT24CXX_WriteOneByte(EC1_LABLE_ADD + EventRecordList.ec1,EventRecordList.lable1[EventRecordList.ec1]);
+		AT24CXX_WriteOneByte(EC1_LABLE_ADD + 256,(u8)(crc_cal >> 8));
+		AT24CXX_WriteOneByte(EC1_LABLE_ADD + 257,(u8)(crc_cal & 0x00FF));
+
+		WriteDataFromMemoryToEeprom(buf,add_pos + EventRecordList.ec1 * EVENT_LEN, EVENT_LEN);
+
+		EventRecordList.ec1 ++;				//更新事件计数器
+
+		WriteDataFromMemoryToEeprom(&EventRecordList.ec1,EC1_ADD, 1);
+		
+		EventRecordList.important_event_flag ++;
+	}
 
 	if(xSchedulerRunning == 1)
 	{

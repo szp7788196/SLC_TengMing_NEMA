@@ -154,6 +154,8 @@ void netdev_init(void)
 //	if(bcxx_set_AT_NSONMI(3) != 1)
 //		goto RE_INIT;
 
+//	delay_ms(5000);
+	
 	if(m53xx_set_AT_CGATT(1) != 1)
 		goto RE_INIT;
 

@@ -99,8 +99,8 @@
 
 #define MAX_EVENT_NUM				256
 
-#define SWITCH_ON_MIN_CURRENT		25.0f
-#define SWITCH_OFF_MAX_CURRENT		50.0f
+#define SWITCH_ON_MIN_CURRENT		70.0f
+#define SWITCH_OFF_MAX_CURRENT		70.0f
 
 #define WAIT_EXECUTE				0		//等待执行
 #define EXECUTING					1		//正在执行
