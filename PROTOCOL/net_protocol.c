@@ -656,6 +656,11 @@ void GetUserData(u8 *inbuf,u16 len)
 
 		return;
 	}
+	
+	if(data_len < 4)
+	{
+		return;
+	}
 
 	DA1 = *(msg + 0);
 	DA2 = *(msg + 1);
@@ -774,7 +779,7 @@ void GetUserData(u8 *inbuf,u16 len)
 					break;
 
 					case 46:
-						user_data_in.data_unit[user_data_in.num].len = 1 + 32 + 1 + ((((u16)(*(msg + 33))) << 8) + (u16)(*(msg + 34))) * 10;
+						user_data_in.data_unit[user_data_in.num].len = 1 + 32 + 1 + ((u16)(*(msg + 33))) * 10;
 					break;
 
 					case 48:
