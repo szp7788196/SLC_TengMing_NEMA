@@ -47,6 +47,10 @@
 
     typedef unsigned long long int  uint64;
     typedef long long int           int64;
+	
+//#define CHANG_ZHOU_APN
+#define PUBLIC_NET_APN
+//#define PUBLIC_NET_NO_APN
 
 
 #define SOFT_WARE_VRESION				101			//软件版本号

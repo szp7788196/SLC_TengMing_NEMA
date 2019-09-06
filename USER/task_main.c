@@ -116,7 +116,7 @@ void vTaskMAIN(void *pvParameters)
 		else if(FrameWareState.state == FIRMWARE_DOWNLOAD_FAILED)
 		{
 			FrameWareState.state = FIRMWARE_FREE;			//暂时不进行固件下载,等到下次上电的时候再下载
-			
+
 #ifdef EVENT_RECORD
 			CheckEventsEC51(0x01,DeviceInfo.software_ver);	//固件升级失败
 #endif

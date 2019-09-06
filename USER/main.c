@@ -29,7 +29,7 @@ RCC_ClocksTypeDef RCC_Clocks;
 //0x15,0x29,0x88,0x19,0x40,0xb8,0x16
 //};
 
-u8 jjjj[100];
+//u8 jjjj[100];
 
 int main(void)
 {
