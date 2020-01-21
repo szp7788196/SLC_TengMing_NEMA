@@ -245,7 +245,34 @@ void vTaskSENSOR(void *pvParameters)
 		{
 			NB_ModulePara.snr[1] |= 0x10;
 		}
-
+		
+#ifdef TENGMING
+		//cell id
+		memcpy(NB_ModulePara.cell_id,&BcxxCellID,4);
+		
+		//earfcn
+		if(BcxxEARFCN >= 1 && BcxxEARFCN < 1000)
+		{
+			NB_ModulePara.earfcn[0] = (((((u16)BcxxEARFCN) / 10) % 10) << 4) + ((((u16)BcxxEARFCN) % 10) & 0x0F);
+			NB_ModulePara.earfcn[1] = ((((u16)BcxxEARFCN) / 100) & 0x0F);
+			NB_ModulePara.earfcn[1] |= 0x80;
+		}
+		else if(BcxxEARFCN >= 1000 && BcxxEARFCN < 10000)
+		{
+			NB_ModulePara.earfcn[0] = (((((u16)BcxxEARFCN / 10) / 10) % 10) << 4) + ((((u16)BcxxEARFCN / 10) % 10) & 0x0F);
+			NB_ModulePara.earfcn[1] = ((((u16)BcxxEARFCN / 10) / 100) & 0x0F);
+			NB_ModulePara.earfcn[1] |= 0x60;
+		}
+		else if(BcxxEARFCN >= 10000 && BcxxEARFCN <= 32767)
+		{
+			NB_ModulePara.earfcn[0] = (((((u16)BcxxEARFCN / 100) / 10) % 10) << 4) + ((((u16)BcxxEARFCN / 100) % 10) & 0x0F);
+			NB_ModulePara.earfcn[1] = ((((u16)BcxxEARFCN / 100) / 100) & 0x0F);
+			NB_ModulePara.earfcn[1] |= 0x20;
+		}
+		
+		NB_ModulePara.earfcn[1] &= ~0x10;
+#endif
+		
 		delay_ms(1000);
 
 //		SENSOR_Satck = uxTaskGetStackHighWaterMark(NULL);

@@ -121,7 +121,6 @@ typedef struct
 } MIPL_T;
 
 
-extern char cmd_rx_buff[256];
 
 extern u8 BcxxBand;		//频段
 extern s16 BcxxCsq;		//通信状态质量
@@ -130,6 +129,8 @@ extern s16 BcxxRsrp;	//reference signal received power
 extern s16 BcxxRsrq;	//reference signal received quality
 extern s16 BcxxRssi;	//received signal strength indicator
 extern s16 BcxxSnr;		//signal to noise ratio
+extern s16 BcxxEARFCN;	//last earfcn value
+extern u32 BcxxCellID;	//last cell ID
 
 void m53xx_hard_init(void);
 void netdev_init(void);
@@ -142,16 +143,21 @@ void netif_rx(uint8_t*buf,uint16_t *read);
 
 unsigned char m53xx_set_NATSPEED(u32 baud_rate);
 unsigned char m53xx_set_AT_CFUN(char cmd);
+unsigned char m53xx_set_AT_NCSEARFCN(void);
 unsigned char m53xx_set_AT_NBAND(unsigned char *imsi);
 unsigned char m53xx_get_AT_CSQ(signed short *csq);
 unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
                                    signed short *rssi,
                                    signed short *snr,
                                    signed short *pci,
-                                   signed short *rsrq);
+                                   signed short *rsrq,
+                                   signed short *earfcn,
+                                   unsigned int *cell_id,
+                                   unsigned char *band);
 unsigned char m53xx_get_AT_CGSN(void);
 unsigned char m53xx_get_AT_NCCID(void);
 unsigned char m53xx_get_AT_CIMI(void);
+unsigned char bcxx_set_AT_CGCONTRDP(void);
 unsigned char m53xx_set_AT_CELL_RESELECTION(void);
 unsigned char m53xx_set_AT_NRB(void);
 unsigned char m53xx_set_AT_NCDP(char *addr, char *port);
@@ -191,8 +197,8 @@ size_t m53xx_register_update (uint16_t lifttime,
                               uint8_t *buffer,									    
                               size_t  buffer_len);
 size_t m53xx_close_request(uint8_t  *buffer,size_t buffer_len);
-void m53xx_notify_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint8_t flag,uint8_t index,uint16_t ackid);
-void m53xx_read_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint16_t msgid,uint8_t result,uint8_t index,uint8_t flag);
+int m53xx_notify_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint8_t flag,uint8_t index,uint16_t ackid);
+int m53xx_read_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint16_t msgid,uint8_t result,uint8_t index,uint8_t flag);
 void m53xx_write_rsp(int suc,uint16_t msgid);
 void m53xx_execute_rsp(int suc,uint16_t msgid);
 void m53xx_discover_rsp(uint16_t objid,char *resid);

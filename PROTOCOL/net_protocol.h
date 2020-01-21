@@ -5,6 +5,8 @@
 #include "m53xx.h"
 
 
+//#define TENGMING
+
 #define MAX_FRAME_LEN		1024
 #define MAX_PNFN_NUM		1
 #define MAX_USER_DATA_LEN	512
@@ -265,6 +267,7 @@ typedef struct DeviceInfo					//设备信息
 	u8 iccid[20];							//iccid
 	u8 imsi[15];							//imsi
 	u8 imei[15];							//imei
+	u8 net_apn[128];						//卡的APN
 }DeviceInfo_S;
 
 typedef struct DeviceElectricPara			//单灯电参数
@@ -289,6 +292,11 @@ typedef struct NB_ModulePara				//NB模块参数
 	u8 pci[2];								//基站
 	u8 rsrp[2];								//信号强度
 	u8 snr[2];								//信噪比
+	
+#ifdef TENGMING
+	u8 cell_id[4];							//基站小区标识
+	u8 earfcn[2];							//调制信号的中心频率
+#endif
 }NB_ModulePara_S;
 
 typedef struct EventRecordList				//事件记录表

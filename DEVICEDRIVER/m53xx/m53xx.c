@@ -13,7 +13,7 @@
 #include "uart4.h"
 
 
-char cmd_tx_buff[512];
+char cmd_tx_buff[NBIOT_SOCK_BUF_SIZE + 64];
 unsigned char   bcxx_init_ok;
 unsigned char	bcxx_busy = 0;
 char *bcxx_imei = NULL;
@@ -25,6 +25,8 @@ s16 BcxxRsrp = 0;	//reference signal received power
 s16 BcxxRsrq = 0;	//reference signal received quality
 s16 BcxxRssi = 0;	//received signal strength indicator
 s16 BcxxSnr = 0;	//signal to noise ratio
+s16 BcxxEARFCN = 0;	//last earfcn value
+u32 BcxxCellID = 0;	//last cell ID
 
 void m53xx_hard_init(void)
 {
@@ -68,12 +70,12 @@ u32 ip_SendData(int8_t *buf, uint32_t len)
 	u8 err = 0;
 
 	err = SentData((char *)buf,"OK",100);
-	
+
 	if(err == 1)
 	{
 		return len;
 	}
-	
+
 	return (u32)err;
 }
 
@@ -98,6 +100,8 @@ void netif_rx(uint8_t *buf,uint16_t *read)
 
 void netdev_init(void)
 {
+	static u8 ncsearfcn_enable = 0;
+
 	RE_INIT:
 
 	m53xx_hard_reset();
@@ -120,6 +124,18 @@ void netdev_init(void)
 
 	if(m53xx_set_AT_CFUN(0) != 1)
 		goto RE_INIT;
+
+	if(ncsearfcn_enable >= 3)
+	{
+		ncsearfcn_enable = 0;
+
+		nbiot_sleep(3000);
+
+		if(m53xx_set_AT_NCSEARFCN() != 1)
+			goto RE_INIT;
+
+		nbiot_sleep(6000);
+	}
 
 	if(m53xx_set_AT_NBAND(DeviceInfo.imsi) != 1)
 		goto RE_INIT;
@@ -155,7 +171,7 @@ void netdev_init(void)
 //		goto RE_INIT;
 
 //	delay_ms(5000);
-	
+
 	if(m53xx_set_AT_CGATT(1) != 1)
 		goto RE_INIT;
 
@@ -163,8 +179,15 @@ void netdev_init(void)
 
 	if(!SendCmd("AT+CGATT?\r\n","+CGATT:1", 1000,5,TIMEOUT_5S))
 	{
+		ncsearfcn_enable ++;
+
 		goto RE_INIT;
 	}
+
+//	if(bcxx_set_AT_CGCONTRDP() != 1)
+//		goto RE_INIT;
+
+	ncsearfcn_enable = 0;
 
 #ifdef DEBUG_LOG
 	printf("m5310-A init sucess\r\n");
@@ -226,6 +249,21 @@ unsigned char m53xx_set_AT_CFUN(char cmd)
 	sprintf(cmd_tx_buf,"AT+CFUN=%d\r\n", cmd);
 
     ret = SendCmd(cmd_tx_buf, "OK", 100,0,TIMEOUT_90S);
+
+    return ret;
+}
+
+//清频操作
+unsigned char m53xx_set_AT_NCSEARFCN(void)
+{
+	unsigned char ret = 0;
+    char cmd_tx_buf[64];
+
+	memset(cmd_tx_buf,0,64);
+
+	sprintf(cmd_tx_buf,"AT+NCSEARFCN\r\n");
+
+    ret = SendCmd(cmd_tx_buf, "OK", 100,0,TIMEOUT_2S);
 
     return ret;
 }
@@ -301,21 +339,38 @@ unsigned char m53xx_get_AT_CGSN(void)
 unsigned char m53xx_get_AT_NCCID(void)
 {
 	unsigned char ret = 0;
+	u8 i = 0;
 	char buf[32];
 
-    if(SendCmd("AT+NCCID\r\n", "OK", 100,0,TIMEOUT_5S) == 1)
-    {
-		memset(buf,0,32);
-
-		get_str1((unsigned char *)result_ptr->data, "NCCID:", 1, "\r\n", 2, (unsigned char *)buf);
-
-		if(strlen(buf) == 20)
+	for(i = 0; i < 10; i ++)
+	{
+		if(SendCmd("AT+NCCID\r\n", "OK", 100,0,TIMEOUT_5S) == 1)
 		{
-			memcpy(DeviceInfo.iccid,buf,20);
+			memset(buf,0,32);
 
-			ret = 1;
+			get_str1((unsigned char *)result_ptr->data, "NCCID:", 1, "\r\n", 2, (unsigned char *)buf);
+
+			if(strlen(buf) == 20)
+			{
+				memcpy(DeviceInfo.iccid,buf,20);
+
+				ret = 1;
+			}
+
+			break;
 		}
-    }
+		else
+		{
+			if(i < 9)
+			{
+				delay_ms(5000);
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
 
     return ret;
 }
@@ -339,6 +394,26 @@ unsigned char m53xx_get_AT_CIMI(void)
 			ret = 1;
 		}
     }
+
+    return ret;
+}
+
+//读取卡的APN
+unsigned char bcxx_set_AT_CGCONTRDP(void)
+{
+	unsigned char ret = 0;
+
+    if(SendCmd("AT+CGCONTRDP\r\n", "OK", 100,0,TIMEOUT_1S) == 1)
+	{
+		memset(DeviceInfo.net_apn,0,128);
+
+		get_str1((unsigned char *)result_ptr->data, "\"", 1, "\"", 2, DeviceInfo.net_apn);
+
+		if(strlen((char *)DeviceInfo.net_apn) > 0)
+		{
+			ret = 1;
+		}
+	}
 
     return ret;
 }
@@ -692,17 +767,23 @@ unsigned char m53xx_get_AT_CSQ(signed short *csq)
 	pci		物理小区标识
 	rsrq	参考信号接收质量
 	ecl		信号覆盖等级
+	cell_id 基站小区标识
+	earfcn  固定频率的编号
+    band	频带
 */
 unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
                                    signed short *rssi,
                                    signed short *snr,
                                    signed short *pci,
-                                   signed short *rsrq)
+                                   signed short *rsrq,
+                                   signed short *earfcn,
+                                   unsigned int *cell_id,
+                                   unsigned char *band)
 {
 	u8 ret = 0;
 	u8 i = 0;
 	char *msg = NULL;
-	char tmp[10];
+	char tmp[20];
 
 	if(SendCmd("AT+NUESTATS=CELL\r\n", "OK", 100,0,TIMEOUT_1S) == 1)
 	{
@@ -711,17 +792,15 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 		if(msg == NULL)
 			return 0;
 
-		memset(tmp,0,10);
-
 		msg = msg + 6;
-
+		memset(tmp,0,20);
 		while(*msg != ',')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
 
 		i = 0;
 		msg = msg + 1;
-		memset(tmp,0,10);
+		memset(tmp,0,20);
 		while(*msg != ',')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
@@ -729,14 +808,14 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 
 		i = 0;
 		msg = msg + 1;
-		memset(tmp,0,10);
+		memset(tmp,0,20);
 		while(*msg != ',')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
 
 		i = 0;
 		msg = msg + 1;
-		memset(tmp,0,10);
+		memset(tmp,0,20);
 		while(*msg != ',')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
@@ -744,7 +823,7 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 
 		i = 0;
 		msg = msg + 1;
-		memset(tmp,0,10);
+		memset(tmp,0,20);
 		while(*msg != ',')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
@@ -752,7 +831,7 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 
 		i = 0;
 		msg = msg + 1;
-		memset(tmp,0,10);
+		memset(tmp,0,20);
 		while(*msg != ',')
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
@@ -760,11 +839,53 @@ unsigned char bcxx_get_AT_NUESTATS(signed short *rsrp,
 
 		i = 0;
 		msg = msg + 1;
-		memset(tmp,0,10);
+		memset(tmp,0,20);
 		while(*msg != 0x0D)
 		tmp[i ++] = *(msg ++);
 		tmp[i] = '\0';
 		*snr = nbiot_atoi(tmp,strlen(tmp));
+	}
+
+	if(SendCmd("AT+NUESTATS\r\n", "OK", 100,0,TIMEOUT_1S) == 1)
+	{
+		msg = strstr((char *)result_ptr->data,"Cell ID:");
+
+		if(msg == NULL)
+			return 0;
+
+		i = 0;
+		msg = msg + 8;
+		memset(tmp,0,20);
+		while(*msg != 0x0D)
+		tmp[i ++] = *(msg ++);
+		tmp[i] = '\0';
+		*cell_id = nbiot_atoi(tmp,strlen(tmp));
+
+		msg = strstr((char *)result_ptr->data,"EARFCN:");
+
+		if(msg == NULL)
+			return 0;
+
+		i = 0;
+		msg = msg + 7;
+		memset(tmp,0,20);
+		while(*msg != 0x0D)
+		tmp[i ++] = *(msg ++);
+		tmp[i] = '\0';
+		*earfcn = nbiot_atoi(tmp,strlen(tmp));
+
+		msg = strstr((char *)result_ptr->data,"BAND:");
+
+		if(msg == NULL)
+			return 0;
+
+		i = 0;
+		msg = msg + 5;
+		memset(tmp,0,20);
+		while(*msg != 0x0D)
+		tmp[i ++] = *(msg ++);
+		tmp[i] = '\0';
+		*band = nbiot_atoi(tmp,strlen(tmp));
 	}
 
 	return ret;
@@ -793,7 +914,7 @@ void mipl_generate(void)
 	memset(cmd_tx_buff,0,150);
 
 #ifdef CHANG_ZHOU_APN
-	strcpy(cmd_tx_buff,"AT+MIPLCREATE=49,130031F10003F2002304001100000000000000123137322E31382E32342E3134323A35363833000131F300087100000000,0,49,0\r\n"); 	//常州平台	APN卡
+	strcpy(cmd_tx_buff,"AT+MIPLCREATE=50,130032F10003F2002404001100000000000000133139322E3136382E34392E3231303A35363833000131F300087100000000,0,50,0\r\n"); 	//常州平台	APN卡
 	SendCmd(cmd_tx_buff,"+MIPLCREATE:0",300,0,TIMEOUT_2S);
 #endif
 
@@ -893,12 +1014,12 @@ void m53xx_delobj(uint16_t  objid)
 
 	if(status==2)
 		SendCmd((char *)buffer,"OK",300,0,TIMEOUT_2S);
-	
+
 	if(status != 1)
 	{
 		return 0;
 	}
-	
+
 	return buffer_len;
 }
 
@@ -948,8 +1069,9 @@ size_t m53xx_close_request( uint8_t  *buffer,
 }
 
 
-void m53xx_notify_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint8_t flag,uint8_t index,uint16_t ackid)
+int m53xx_notify_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint8_t flag,uint8_t index,uint16_t ackid)
 {
+	int ret = 0;
 	char tmp[10];
 
 	memset(cmd_tx_buff,0,sizeof(cmd_tx_buff));
@@ -990,12 +1112,14 @@ void m53xx_notify_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint8_t 
 	printf("%s\r\n",cmd_tx_buff);
 #endif
 
-	SentData(cmd_tx_buff,"OK",100);
+	ret = SentData(cmd_tx_buff,"OK",100);
+
+	return ret;
 }
 
-void m53xx_read_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint16_t msgid,uint8_t result,uint8_t index,uint8_t flag)
+int m53xx_read_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint16_t msgid,uint8_t result,uint8_t index,uint8_t flag)
 {
-
+	int ret = 0;
 	char tmp[10];
 
 	memset(cmd_tx_buff,0,sizeof(cmd_tx_buff));
@@ -1043,7 +1167,9 @@ void m53xx_read_upload(const nbiot_uri_t *uri,uint8_t type,char *data,uint16_t m
 	printf("%s\r\n",cmd_tx_buff);
 #endif
 
-	SentData(cmd_tx_buff,"OK",100);
+	ret = SentData(cmd_tx_buff,"OK",100);
+
+	return ret;
 }
 
 void m53xx_write_rsp(int suc,uint16_t msgid)
@@ -1065,7 +1191,6 @@ void m53xx_write_rsp(int suc,uint16_t msgid)
 #endif
 
 	SentData(cmd_tx_buff,"OK",100);
-
 }
 
 void m53xx_execute_rsp(int suc,uint16_t msgid)

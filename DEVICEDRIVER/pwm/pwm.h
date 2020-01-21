@@ -4,7 +4,7 @@
 #include "sys.h"
 
 
-void TIM5_Int_Init(u16 arr,u16 psc);
+void TIM5_Init(u16 arr,u16 psc);
 void PWMSetLightLevel(u16 level);
 
 

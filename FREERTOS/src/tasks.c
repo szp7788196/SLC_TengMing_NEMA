@@ -2735,6 +2735,7 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
 			extern void vApplicationIdleHook( void );
 
 			/* Call the user defined function from within the idle task.  This
+			
 			allows the application designer to add background functionality
 			without the overhead of a separate task.
 			NOTE: vApplicationIdleHook() MUST NOT, UNDER ANY CIRCUMSTANCES,

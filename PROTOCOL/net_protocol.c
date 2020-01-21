@@ -337,6 +337,7 @@ u16 CombineCompleteFrame(u8 prm, u8 *outbuf)
 u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 {
 	u16 ret = 0;
+	u16 res = 1;
 	u8 temp0 = 0;
 	u8 temp_buf[32];
 	u8 fn_really = 1;
@@ -363,6 +364,29 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 		user_data_out.data_unit[0].len = 0;
 		user_data_out.data_unit[0].msg = NULL;
 	}
+	if(afn == 0x0C && fn == 69)			//上报电参数
+	{
+		if(user_data_out.data_unit[0].pn_fn.pn == 0)
+		{
+			user_data_out.data_unit[0].pn_fn.pn = 9;
+		}
+
+		user_data_out.data_unit[0].len = 24;
+		user_data_out.data_unit[0].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[0].len);
+
+		*(user_data_out.data_unit[0].msg + 0) = DeviceElectricPara.initial_brightness;
+		*(user_data_out.data_unit[0].msg + 1) = DeviceElectricPara.switch_state;
+		*(user_data_out.data_unit[0].msg + 2) = DeviceElectricPara.brightness;
+		*(user_data_out.data_unit[0].msg + 3) = DeviceElectricPara.run_state;
+
+		memcpy(user_data_out.data_unit[0].msg + 4,DeviceElectricPara.volatge,2);
+		memcpy(user_data_out.data_unit[0].msg + 6,DeviceElectricPara.current,3);
+		memcpy(user_data_out.data_unit[0].msg + 9,DeviceElectricPara.active_power,2);
+		memcpy(user_data_out.data_unit[0].msg + 11,DeviceElectricPara.pf,2);
+		memcpy(user_data_out.data_unit[0].msg + 13,DeviceElectricPara.leakage_current,3);
+		memcpy(user_data_out.data_unit[0].msg + 16,DeviceElectricPara.Illuminance,2);
+		memcpy(user_data_out.data_unit[0].msg + 18,DeviceElectricPara.time_stamp,6);
+	}
 	else if(afn == 0x02 && fn == 3)		//心跳
 	{
 		user_data_out.data_unit[0].len = 0;
@@ -376,7 +400,7 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 		}
 
 		xSemaphoreTake(xMutex_EVENT_RECORD, portMAX_DELAY);
-		
+
 		if(EventRecordList.normal_event_flag != 0)
 		{
 			e_event_add = E_NORMAL_ADD;
@@ -391,17 +415,27 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 			ecx = EventRecordList.ec1;
 			ec_flag = EventRecordList.important_event_flag;
 		}
-		
+
+		if((EventReport & ((long long)1 << ((long long)event_lable[ecx - ec_flag] - 1))) == 0x00)
+		{
+			res = 0;
+
+			goto GET_OUT;
+		}
+
+		if((EventImportant & ((long long)1 << ((long long)event_lable[ecx - ec_flag] - 1))) == 0x00)		//一般事件
+		{
+			fn_really = 2;	//一般事件Fn
+		}
+
 		switch(event_lable[ecx - ec_flag])
 		{
 			case 15:
 				temp0 = 14;		//当前事件所占内存长度
-				fn_really = 2;	//一般事件Fn
 			break;
 
 			case 16:
 				temp0 = 14;
-				fn_really = 2;
 			break;
 
 			case 17:
@@ -434,7 +468,6 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 
 			case 28:
 				temp0 = 21;
-				fn_really = 2;
 			break;
 
 			case 36:
@@ -451,13 +484,12 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 
 			case 52:
 				temp0 = 22;
-				fn_really = 2;
 			break;
 
 			default:
 			break;
 		}
-		
+
 		user_data_out.data_unit[0].pn_fn.fn = fn_really;
 
 		user_data_out.data_unit[0].len = temp0 + 4;
@@ -468,12 +500,12 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 		*(user_data_out.data_unit[0].msg + 2) = ecx - 1;
 		*(user_data_out.data_unit[0].msg + 3) = ecx;
 
-		ret = ReadDataFromEepromToMemory(temp_buf,
+		res = ReadDataFromEepromToMemory(temp_buf,
 		                                 e_event_add +
 		                                 (ecx - ec_flag) *
 		                                 EVENT_LEN,EVENT_LEN);	//从EEPROM中读取时间内容
 
-		if(ret == 1)
+		if(res == 1)
 		{
 			memcpy(user_data_out.data_unit[0].msg + 4,temp_buf,temp0);
 		}
@@ -482,6 +514,7 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 			memset(user_data_out.data_unit[0].msg + 4,0,temp0);					//读取失败 将数据单元清空
 		}
 
+		GET_OUT:
 		if(EventRecordList.normal_event_flag != 0)
 		{
 			EventRecordList.normal_event_flag --;
@@ -504,7 +537,10 @@ u16 MakeLogin_out_heartbeatFrame(u8 afn,u8 fn,u8 *outbuf)
 		*(user_data_out.data_unit[0].msg + 3) = (u8)(FrameWareState.current_bag_cnt >> 8);
 	}
 
-	ret = CombineCompleteFrame(1,outbuf);
+	if(res == 1)
+	{
+		ret = CombineCompleteFrame(1,outbuf);
+	}
 
 	return ret;
 }
@@ -656,7 +692,7 @@ void GetUserData(u8 *inbuf,u16 len)
 
 		return;
 	}
-	
+
 	if(data_len < 4)
 	{
 		return;
@@ -1005,7 +1041,7 @@ u16 UserDataUnitHandle(void)
 						{
 							LogInOutState = 0x01;			//登录腾明平台成功
 						}
-						
+
 						if(NeedServerConfirm != 0)			//有需要被主站确认的消息
 						{
 							NeedServerConfirm = 0;
@@ -1128,6 +1164,33 @@ u16 UserDataUnitHandle(void)
 						memcpy(EventRecordConf.effective,msg + 0,8);
 						memcpy(EventRecordConf.important,msg + 8,8);
 						memcpy(EventRecordConf.auto_report,msg + 16,8);
+
+						EventEffective = ((((long long)EventRecordConf.effective[0]) << 56) & 0xFF00000000000000) +
+										 ((((long long)EventRecordConf.effective[1]) << 48) & 0x00FF000000000000) +
+										 ((((long long)EventRecordConf.effective[2]) << 40) & 0x0000FF0000000000) +
+										 ((((long long)EventRecordConf.effective[3]) << 32) & 0x000000FF00000000) +
+										 ((((long long)EventRecordConf.effective[4]) << 24) & 0x00000000FF000000) +
+										 ((((long long)EventRecordConf.effective[5]) << 16) & 0x0000000000FF0000) +
+										 ((((long long)EventRecordConf.effective[6]) <<  8) & 0x000000000000FF00) +
+										 ((((long long)EventRecordConf.effective[7]) <<  0) & 0x00000000000000FF);
+
+						EventImportant = ((((long long)EventRecordConf.important[0]) << 56) & 0xFF00000000000000) +
+										 ((((long long)EventRecordConf.important[1]) << 48) & 0x00FF000000000000) +
+										 ((((long long)EventRecordConf.important[2]) << 40) & 0x0000FF0000000000) +
+										 ((((long long)EventRecordConf.important[3]) << 32) & 0x000000FF00000000) +
+										 ((((long long)EventRecordConf.important[4]) << 24) & 0x00000000FF000000) +
+										 ((((long long)EventRecordConf.important[5]) << 16) & 0x0000000000FF0000) +
+										 ((((long long)EventRecordConf.important[6]) <<  8) & 0x000000000000FF00) +
+										 ((((long long)EventRecordConf.important[7]) <<  0) & 0x00000000000000FF);
+
+						EventReport =    ((((long long)EventRecordConf.auto_report[0]) << 56) & 0xFF00000000000000) +
+										 ((((long long)EventRecordConf.auto_report[1]) << 48) & 0x00FF000000000000) +
+										 ((((long long)EventRecordConf.auto_report[2]) << 40) & 0x0000FF0000000000) +
+										 ((((long long)EventRecordConf.auto_report[3]) << 32) & 0x000000FF00000000) +
+										 ((((long long)EventRecordConf.auto_report[4]) << 24) & 0x00000000FF000000) +
+										 ((((long long)EventRecordConf.auto_report[5]) << 16) & 0x0000000000FF0000) +
+										 ((((long long)EventRecordConf.auto_report[6]) <<  8) & 0x000000000000FF00) +
+										 ((((long long)EventRecordConf.auto_report[7]) <<  0) & 0x00000000000000FF);
 
 						WriteDataFromMemoryToEeprom(msg + 0,
 					                                ER_OTHER_CONF_ADD,
@@ -1368,6 +1431,16 @@ u16 UserDataUnitHandle(void)
 						WriteDataFromMemoryToEeprom(msg + 0,
 					                                SWITCH_MODE_ADD,
 					                                SWITCH_MODE_LEN - 2);	//将数据写入EEPROM
+
+						user_data_out.data_unit[i].pn_fn.fn = 1;
+					break;
+
+					case 63:		//电参数上传间隔
+						UploadInterval = *(msg + 0);
+
+						WriteDataFromMemoryToEeprom(msg + 0,
+					                                UPLOAD_INTERVAL_ADD,
+					                                UPLOAD_INTERVAL_LEN - 2);	//将数据写入EEPROM
 
 						user_data_out.data_unit[i].pn_fn.fn = 1;
 					break;
@@ -1789,6 +1862,13 @@ u16 UserDataUnitHandle(void)
 						*(user_data_out.data_unit[i].msg + 0) = SwitchMode;
 					break;
 
+					case 63:
+						user_data_out.data_unit[i].len = 1;
+						user_data_out.data_unit[i].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[i].len);
+
+						*(user_data_out.data_unit[i].msg + 0) = UploadInterval;
+					break;
+
 					default:
 					break;
 				}
@@ -1820,7 +1900,7 @@ u16 UserDataUnitHandle(void)
 						{
 							user_data_out.data_unit[i].pn_fn.pn = 9;
 						}
-						
+
 						user_data_out.data_unit[i].len = 24;
 						user_data_out.data_unit[i].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[i].len);
 
@@ -1839,6 +1919,16 @@ u16 UserDataUnitHandle(void)
 					break;
 
 					case 70:
+#ifdef TENGMING
+						user_data_out.data_unit[i].len = 12;
+						user_data_out.data_unit[i].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[i].len);
+
+						memcpy(user_data_out.data_unit[i].msg + 0,NB_ModulePara.pci,2);
+						memcpy(user_data_out.data_unit[i].msg + 2,NB_ModulePara.rsrp,2);
+						memcpy(user_data_out.data_unit[i].msg + 4,NB_ModulePara.snr,2);
+						memcpy(user_data_out.data_unit[i].msg + 6,NB_ModulePara.cell_id,4);
+						memcpy(user_data_out.data_unit[i].msg + 10,NB_ModulePara.earfcn,2);
+#else
 						user_data_out.data_unit[i].len = 8;
 						user_data_out.data_unit[i].msg = (u8 *)mymalloc(sizeof(u8) * user_data_out.data_unit[i].len);
 
@@ -1846,8 +1936,9 @@ u16 UserDataUnitHandle(void)
 						*(user_data_out.data_unit[i].msg + 1) = NB_ModulePara.band;
 
 						memcpy(user_data_out.data_unit[i].msg + 2,NB_ModulePara.pci,2);
-						memcpy(user_data_out.data_unit[i].msg + 2,NB_ModulePara.rsrp,2);
-						memcpy(user_data_out.data_unit[i].msg + 2,NB_ModulePara.snr,2);
+						memcpy(user_data_out.data_unit[i].msg + 4,NB_ModulePara.rsrp,2);
+						memcpy(user_data_out.data_unit[i].msg + 6,NB_ModulePara.snr,2);
+#endif
 					break;
 
 					default:
@@ -2438,11 +2529,15 @@ u16 UserDataUnitHandle(void)
 					{
 						*(user_data_out.data_unit[0].msg + 0) = 0;
 						*(user_data_out.data_unit[0].msg + 1) = 2;
+
+						ResetFrameWareState();
 					}
 					else if(search_str(DeviceInfo.software_ver, FTP_FrameWareInfo.version) != -1)	//与现有版本相同
 					{
 						*(user_data_out.data_unit[0].msg + 0) = 0;
 						*(user_data_out.data_unit[0].msg + 1) = 1;
+
+						ResetFrameWareState();
 					}
 					else	//可以升级
 					{

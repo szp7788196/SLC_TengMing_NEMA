@@ -171,6 +171,8 @@ static void observe_read( nbiot_device_t    *dev,
 						  uint8_t           *buffer,
                           size_t             buffer_len)
 {
+	int err = NBIOT_ERR_OK;
+	
     do
     {
 
@@ -190,8 +192,12 @@ static void observe_read( nbiot_device_t    *dev,
             break;
         }
 
-	    nbiot_send_buffer(uri,buffer,length,dev->next_mid,true);
-
+	    err = nbiot_send_buffer(uri,buffer,length,dev->next_mid,true);
+		
+		if(err == NBIOT_ERR_ERROR)
+		{
+			dev->state = STATE_NOTIFY_FAILED;
+		}
     } while(0);
 }
 

@@ -55,6 +55,20 @@ u8 RTC_Init(void)
 	}
 	else
 	{
+		RCC_LSEConfig(RCC_LSE_ON);
+		while (RCC_GetFlagStatus(RCC_FLAG_LSERDY) == RESET)
+		{
+			temp ++;
+			delay_ms(10);
+			IWDG_Feed();				//喂看门狗
+			if(temp >= 250)
+			{
+				RCC_LSICmd(ENABLE);
+				delay_ms(100);
+				break;
+			}
+		}
+		
 		RTC_WaitForSynchro();
 		RTC_ITConfig(RTC_IT_SEC, ENABLE);
 		RTC_WaitForLastTask();
@@ -67,13 +81,9 @@ u8 RTC_Init(void)
 
 void RTC_IRQHandler(void)
 {
-	static time_t sec = 0;
-	
 	if (RTC_GetITStatus(RTC_IT_SEC) != RESET)
 	{
 		RTC_Get();
-		
-		SetSysTick1s(sec ++);		//系统秒计时器
  	}
 
 	RTC_ClearITPendingBit(RTC_IT_SEC|RTC_IT_OW);
@@ -214,8 +224,7 @@ u8 RTC_Get(void)
 	u16 temp1 = 0;
 
     timecount = RTC_GetCounter();
-//	SetSysTick1s(timecount);
-	SetRTCTick1s(timecount);
+	SetSysTick1s(timecount);
  	temp = timecount / 86400;
 
 	if(daycnt != temp)

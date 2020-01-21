@@ -99,7 +99,7 @@ int nbiot_udp_recv( void              *buff,
 {
 	*read = 0;
 
-	if(NULL == buff ||NULL == read)
+	if(NULL == buff || NULL == read)
 	{
 		return NBIOT_ERR_BADPARAM;
 	}

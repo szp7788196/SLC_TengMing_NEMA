@@ -7,11 +7,13 @@
 #include "fifo.h"
 #include "ringbuf.h"
 
+#define NET_BUF_MAX_LEN			1024
+
 extern volatile char rsp_ok;
 extern RingBuf ring_fifo;
 extern RingBuf ring_fifo1;
-extern uint8_t rx_fifo[1024];
-extern uint8_t rx_fifo1[1024];
+extern uint8_t rx_fifo[NET_BUF_MAX_LEN];
+extern uint8_t rx_fifo1[NET_BUF_MAX_LEN];
 extern int8_t dl_buf_id;
 
 /*

@@ -68,7 +68,11 @@ typedef enum
     STATE_BS_PENDING,         /* boostrap on going */
     STATE_BS_FINISHED,        /* bootstrap done */
     STATE_BS_FAILED,          /* bootstrap failed */
-    STATE_SERVER_RESET        /* server reset */
+    STATE_SERVER_RESET,       /* server reset */
+	STATE_UPDATE_DOWNLOADING, /* downloading frameware */
+	STATE_UPDATE_DOWNLOADED,  /* frameware downloaded ok */
+	STATE_UPDATE_UPDATING,    /* updateing */
+	STATE_NOTIFY_FAILED,      /* notify data failed */
 } nbiot_status_t;
 
 #define STATE_ERROR(x) \
@@ -78,7 +82,8 @@ typedef enum
         ((x)->state == STATE_REG_UPDATE_NEEDED ? NBIOT_ERR_OK : \
         ((x)->state == STATE_REG_FAILED ? NBIOT_ERR_REG_FAILED : \
         ((x)->state == STATE_SERVER_RESET ? NBIOT_ERR_SERVER_RESET : \
-        ((x)->state == STATE_BS_FAILED ? NBIOT_ERR_BS_FAILED : NBIOT_ERR_PENDING)))))))
+		((x)->state == STATE_NOTIFY_FAILED ? NBIOT_ERR_ERROR : \
+        ((x)->state == STATE_BS_FAILED ? NBIOT_ERR_BS_FAILED : NBIOT_ERR_PENDING))))))))
 
 typedef struct _nbiot_node_t
 {

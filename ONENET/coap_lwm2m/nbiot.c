@@ -37,7 +37,7 @@ int nbiot_device_create( nbiot_device_t         **dev,
     tmp->first_mid = tmp->next_mid;
 	tmp->state = STATE_DEREGISTERED;
     tmp->life_time = life_time;
-	tmp->registraction = 0;
+	tmp->registraction = nbiot_time();
 	tmp->nodes = NULL;
 	tmp->observes = NULL;
 	tmp->transactions = NULL;
@@ -46,7 +46,7 @@ int nbiot_device_create( nbiot_device_t         **dev,
     tmp->execute_func = execute_func;
 
 	mipl_generate();
-	
+
 //    init_miplconf(life_time,NULL,NULL);
 
     return NBIOT_ERR_OK;
@@ -388,7 +388,7 @@ static void handle_transaction( nbiot_device_t *dev,
 								  size_t       buffer_len,
 								  size_t       max_buffer_len )
 {
-	char *msg = NULL,i = 0,tmp[10];
+	char *msg = NULL,i = 0,tmp[64];
 	uint16_t  mid;
 	nbiot_uri_t  uri;
 	nbiot_transaction_t *transaction = NULL;
@@ -423,19 +423,15 @@ static void handle_transaction( nbiot_device_t *dev,
 		}
 		else if(strstr(tmp,",6\r\n") != NULL)
 		{
-			transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-
-				if(transaction)
-					nbiot_transaction_del(dev,
-					                      true,
-					                      dev->next_mid);
+			if(transaction)
+				nbiot_transaction_del(dev,
+									  true,
+									  dev->next_mid);
 		}
 		else if(strstr(tmp,",8\r\n") != NULL)
 		{
 			if(dev->state == STATE_REG_PENDING)
 			{
-				transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
@@ -448,8 +444,6 @@ static void handle_transaction( nbiot_device_t *dev,
 		{
 			if(dev->state == STATE_REG_UPDATE_PENDING)
 			{
-				transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
@@ -488,8 +482,6 @@ static void handle_transaction( nbiot_device_t *dev,
 		{
 			if(dev->state == STATE_REG_UPDATE_PENDING)
 			{
-				transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
@@ -498,12 +490,10 @@ static void handle_transaction( nbiot_device_t *dev,
 
 			dev->state = STATE_REG_UPDATE_NEEDED;
 		}
-		else if(strstr(tmp,",15\r\n")!=NULL)
+		else if(strstr(tmp,"0,15\r\n")!=NULL)
 		{
 			if(dev->state == STATE_DEREG_PENDING)
 			{
-				transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-
 				if(transaction)
 					nbiot_transaction_del(dev,
 					                      true,
@@ -516,8 +506,6 @@ static void handle_transaction( nbiot_device_t *dev,
 		}
 		else if(strstr(tmp,",20\r\n") != NULL)
 		{
-			transaction = (nbiot_transaction_t*)NBIOT_LIST_GET( dev->transactions, dev->first_mid);
-
 			if(transaction)
 				nbiot_transaction_del(dev,
 									  true,
@@ -626,7 +614,7 @@ static void nbiot_handle_buffer( nbiot_device_t *dev,
                                  size_t          buffer_len,
                                  size_t          max_buffer_len )
 {
-	uint16_t code[6] = {0,0,0,0,0,0};
+	uint16_t code[6] = {0};
 	uint16_t code_now = 0;
 	uint8_t k = 0;
 	char *read = NULL,*write = NULL,*excute = NULL;
@@ -655,13 +643,13 @@ static void nbiot_handle_buffer( nbiot_device_t *dev,
 	for(k = 0; k < 6; k ++)
 	{
 		code_now = code[k];
-		
+
 		if(COAP_READ <= code_now && code_now <= COAP_EXECUTE)//ÏÂÐÐÃüÁî
 		{
 			if(dev->state == STATE_REGISTERED ||
 			   dev->state == STATE_REG_UPDATE_PENDING ||
-			   dev->state ==STATE_REG_UPDATE_NEEDED ||
-			   dev->state ==STATE_DEREG_PENDING)
+			   dev->state == STATE_REG_UPDATE_NEEDED ||
+			   dev->state == STATE_DEREG_PENDING)
 				handle_request(dev,
 							   code_now,
 							   buffer,
@@ -686,10 +674,8 @@ int nbiot_device_connect( nbiot_device_t *dev,
     int ret;
     time_t last;
     time_t curr;
-    uint8_t buffer[NBIOT_SOCK_BUF_SIZE];
+    uint8_t buffer[NBIOT_SOCK_BUF_SIZE] = {0};
 
-    /* registraction */
-	memset(buffer,0,NBIOT_SOCK_BUF_SIZE);
     ret = nbiot_register_start(dev,timeout,buffer,sizeof(buffer));
 
     if ( ret )
@@ -714,19 +700,18 @@ int nbiot_device_connect( nbiot_device_t *dev,
 
         curr = nbiot_time();
 
-		
 		err = nbiot_transaction_step( dev,
 									curr,
 									buffer,
 									sizeof(buffer));
-			
+
 		if(err != NBIOT_ERR_OK)
 		{
 			err = COAP_INTERNAL_SERVER_ERROR_500;
-			
+
 			return err;
 		}
-		
+
         /* ok */
         if ( dev->state == STATE_REGISTERED )
         {
@@ -751,9 +736,9 @@ void nbiot_device_close( nbiot_device_t *dev,
                          int             timeout )
 {
     int ret;
-    uint8_t buffer[NBIOT_SOCK_BUF_SIZE];
+    uint8_t buffer[NBIOT_SOCK_BUF_SIZE] = {0};
 
-    memset(buffer,0,NBIOT_SOCK_BUF_SIZE);
+
 	device_free_transactions( dev );
     device_free_observes( dev );
     ret = nbiot_deregister(dev,buffer,sizeof(buffer));
@@ -805,7 +790,7 @@ int nbiot_device_step( nbiot_device_t *dev,
 	int err = COAP_NO_ERROR;
     time_t last;
     time_t curr;
-    uint8_t buffer[NBIOT_SOCK_BUF_SIZE];
+    uint8_t buffer[NBIOT_SOCK_BUF_SIZE] = {0};
 
     last = nbiot_time();
 
@@ -829,7 +814,7 @@ int nbiot_device_step( nbiot_device_t *dev,
                              curr,
                              buffer,
                              sizeof(buffer));
-		
+
 		if(err == COAP_INTERNAL_SERVER_ERROR_500)
 		{
 			return COAP_INTERNAL_SERVER_ERROR_500;
@@ -838,19 +823,19 @@ int nbiot_device_step( nbiot_device_t *dev,
 		if (  dev->state == STATE_REGISTERED ||
 		      dev->state == STATE_REG_UPDATE_NEEDED ||
 		      dev->state == STATE_REG_UPDATE_PENDING ||
-		      dev->state ==STATE_DEREG_PENDING ||
-		      dev->state ==STATE_REG_PENDING ||
-		      dev->state ==STATE_REG_FAILED  )
+		      dev->state == STATE_DEREG_PENDING ||
+		      dev->state == STATE_REG_PENDING ||
+		      dev->state == STATE_REG_FAILED  )
 		{
 			err = nbiot_transaction_step( dev,
 									curr,
 									buffer,
 									sizeof(buffer));
-			
+
 			if(err != NBIOT_ERR_OK)
 			{
 				err = COAP_INTERNAL_SERVER_ERROR_500;
-				
+
 				return err;
 			}
 		}
@@ -1035,7 +1020,6 @@ void nbiot_object_add( nbiot_device_t *dev)
 	}
 }
 
-
 int nbiot_resource_del( nbiot_device_t *dev,
                            uint16_t        objid,
                            uint16_t        instid,
@@ -1094,6 +1078,7 @@ int nbiot_send_buffer(const nbiot_uri_t * uri,
 					  uint16_t            msgid,
 					  bool                updated )
 {
+	int err = NBIOT_ERR_OK;
 	char tmp[8];
 	uint8_t buf[1024];
 	size_t  len = 0;
@@ -1141,14 +1126,14 @@ int nbiot_send_buffer(const nbiot_uri_t * uri,
 
 			if(updated == true)
 			{
-				m53xx_notify_upload(&uri1,type,(char *)buf,trigger,0,msgid);
+				err = m53xx_notify_upload(&uri1,type,(char *)buf,trigger,0,msgid);
 
 				if(trigger == 1)
 					trigger = 2;
 			}
 			else
 			{
-				m53xx_read_upload(&uri1,type,(char *)buf,msgid,1,0,trigger);
+				err = m53xx_read_upload(&uri1,type,(char *)buf,msgid,1,0,trigger);
 
 				if(trigger == 1)
 					trigger = 2;
@@ -1162,6 +1147,12 @@ int nbiot_send_buffer(const nbiot_uri_t * uri,
 			break;
 		}
 	}
+
+	if(err == 2)
+	{
+		err = NBIOT_ERR_ERROR;
+	}
+
 	return NBIOT_ERR_OK;
 }
 

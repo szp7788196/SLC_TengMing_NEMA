@@ -48,9 +48,10 @@
     typedef unsigned long long int  uint64;
     typedef long long int           int64;
 	
-//#define CHANG_ZHOU_APN
-#define PUBLIC_NET_APN
+#define CHANG_ZHOU_APN
+//#define PUBLIC_NET_APN
 //#define PUBLIC_NET_NO_APN
+
 
 
 #define SOFT_WARE_VRESION				101			//软件版本号
@@ -108,7 +109,8 @@
 
 #define WAIT_EXECUTE				0		//等待执行
 #define EXECUTING					1		//正在执行
-#define EXECUTED					2		//已经执行完,已过期
+#define RES_EXECUTE					2		//保留执行
+#define EXECUTED					3		//已经执行完,已过期
 
 
 //EEPROM存储数据地址列表
@@ -132,6 +134,9 @@
 
 #define SWITCH_MODE_ADD					246		//开关模式选择
 #define SWITCH_MODE_LEN					3
+
+#define UPLOAD_INTERVAL_ADD				249		//电参数上报间隔
+#define UPLOAD_INTERVAL_LEN				3
 
 #define RSA_ENCRY_PARA_ADD				256		//RSA加密参数
 #define RSA_ENCRY_PARA_LEN				259
@@ -267,7 +272,6 @@ extern u32 SysTick1ms;					//1ms滴答时钟
 extern u32 SysTick10ms;					//10ms滴答时钟
 extern u32 SysTick100ms;				//10ms滴答时钟
 extern time_t SysTick1s;				//1s滴答时钟
-extern time_t RTCTick1s;				//1s滴答时钟
 
 extern u8 GetTimeOK;						//成功获时间标志
 extern pControlStrategy ControlStrategy;	//控制策略
@@ -291,6 +295,9 @@ extern DeviceBaseInfo_S DeviceBaseInfo;
 
 /**********************终端事件检测配置参数***********************/
 extern EventDetectConf_S EventDetectConf;
+extern long long EventEffective;
+extern long long EventImportant;
+extern long long EventReport;
 
 /**************************RSA加密参数****************************/
 extern RSA_PublicKey_S RSA_PublicKey;
@@ -315,6 +322,7 @@ extern IlluminanceThreshold_S IlluminanceThreshold;
 
 /*********************单灯开关模式选择数据************************/
 extern u8 SwitchMode;	//开关模式 1:年表控制 2:经纬度控制 3:光照度控制 4:常亮(常开)
+extern u8 UploadInterval;	//电参数上报间隔
 
 /***********************单灯遥控操作数据*************************/
 extern RemoteControl_S RemoteControl;
@@ -374,8 +382,6 @@ void SysTick100msAdder(void);
 u32 GetSysTick100ms(void);
 void SetSysTick1s(time_t sec);
 time_t GetSysTick1s(void);
-void SetRTCTick1s(time_t sec);
-time_t GetRTCTick1s(void);
 u8 GetRTC_State(void);
 
 
@@ -404,10 +410,12 @@ u8 ReadEnergySavingMode(void);
 u8 ReadAppointmentControl(void);
 u8 ReadIlluminanceThreshold(void);
 u8 ReadSwitchMode(void);
+u8 ReadUploadInterval(void);
 void ResetRemoteCurrentControl(void);
 u8 ReadFTP_ServerInfo(void);
 u8 ReadFTP_FrameWareInfo(void);
 void WriteFrameWareStateToEeprom(void);
+void ResetFrameWareState(void);
 u8 ReadFrameWareState(void);
 u8 UpdateSoftWareVer(void);
 u8 UpdateSoftWareReleaseDate(void);

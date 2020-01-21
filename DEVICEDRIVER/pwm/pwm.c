@@ -3,7 +3,7 @@
 
 
 //定时器3初始化（产生PWM）
-void TIM5_Int_Init(u16 arr,u16 psc)
+void TIM5_Init(u16 arr,u16 psc)
 {
 	GPIO_InitTypeDef GPIO_InitStructure;
 	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
@@ -11,7 +11,6 @@ void TIM5_Int_Init(u16 arr,u16 psc)
 
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
  	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA , ENABLE);
-
 
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;

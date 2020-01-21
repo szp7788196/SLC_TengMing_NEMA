@@ -77,6 +77,7 @@ static void registraction_update_reply( nbiot_device_t *dev,
     if ( dev->state == STATE_REG_UPDATE_PENDING )
     {
         dev->registraction = nbiot_time();
+		
         if (suc == true)
         {
             dev->state = STATE_REGISTERED;

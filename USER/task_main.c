@@ -254,6 +254,9 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 
 	static u8 date = 0;
 
+	time_t gate0 = 0;
+	time_t gate24 = 86400;	//24*3600;
+
 	static time_t start_time = 0;		//开始执行时间
 	static time_t total_time = 0;		//执行结束时间
 	time_t current_time = 0;			//当前时间
@@ -325,8 +328,19 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 
 	if(strategy_head != NULL && ControlStrategy->next != NULL)	//策略列表不为空
 	{
+//		FOR_LOOP:
+
 		for(tmp_strategy = strategy_head->next; tmp_strategy != NULL; tmp_strategy = tmp_strategy->next)
 		{
+			if(tmp_strategy->state == RES_EXECUTE)	//查看此条策略是否为保留执行策略
+			{
+				tmp_strategy->state = EXECUTING;
+
+				start_time = tmp_strategy->hour * 3600 +
+						     tmp_strategy->minute * 60 +
+						     tmp_strategy->second;
+			}
+
 			switch(tmp_strategy->mode)
 			{
 				case 0:		//相对时间方式
@@ -478,12 +492,26 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 															      tmp_strategy->next->minute * 60 +
 															      tmp_strategy->next->second;
 
-												if(start_time <= current_time && current_time <= start_time_next)	//当前时间在当前策略和下个策略的时间段区间内
+												if(start_time < start_time_next)	//没有跨天
 												{
-													ctrl->lock = 0;				//解锁远程控制
+													if(start_time <= current_time && current_time <= start_time_next)	//当前时间在当前策略和下个策略的时间段区间内
+													{
+														ctrl->lock = 0;				//解锁远程控制
+													}
+												}
+												else if(start_time > start_time_next)//跨天
+												{
+													if(start_time <= current_time && current_time <= gate24)
+													{
+														ctrl->lock = 0;				//解锁远程控制
+													}
+													else if(gate0 <= current_time && current_time <= start_time_next)
+													{
+														ctrl->lock = 0;				//解锁远程控制
+													}
 												}
 											}
-											else	//下个策略的你那月日没有全部匹配成功
+											else	//下个策略的年月日没有全部匹配成功
 											{
 												if(start_time <= current_time)	//当前时间大于等于起始执行时间
 												{
@@ -568,42 +596,113 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 						                                      tmp_strategy->next->minute * 60 +
 						                                      tmp_strategy->next->second;
 
-											if(start_time <= current_time && current_time <= start_time_next)	//当前时间在当前策略和下个策略的时间段区间内
+											if(start_time < start_time_next)	//没有跨天
 											{
-												if(start_time == current_time)
+												if(start_time <= current_time && current_time <= start_time_next)	//当前时间在当前策略和下个策略的时间段区间内
 												{
-													if(ctrl->lock == 1)				//判断是否需要解开远程控制所
+													if(start_time == current_time)
 													{
-														ctrl->lock = 0;
+														if(ctrl->lock == 1)				//判断是否需要解开远程控制所
+														{
+															ctrl->lock = 0;
+														}
 													}
-												}
 
-												if(ctrl->lock == 0)		//远程控制已解锁
+													if(ctrl->lock == 0)		//远程控制已解锁
+													{
+														ctrl->control_type = tmp_strategy->type;
+														ctrl->brightness = tmp_strategy->brightness;
+													}
+
+													if(current_time >= start_time_next)		//当前策略即将执行结束
+													{
+														tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
+													}
+
+													ret = 1;
+
+													goto GET_OUT;
+												}
+												else if(current_time > start_time_next)		//下个策略已过期
 												{
-													ctrl->control_type = tmp_strategy->type;
-													ctrl->brightness = tmp_strategy->brightness;
+													tmp_strategy->state = EXECUTED;			//当前策略已过期
 												}
-
-												if(current_time >= start_time_next)		//当前策略即将执行结束
+												else if(current_time < start_time)
 												{
-													tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
+													goto GET_OUT;							//等待当前策略生效
 												}
-
-												ret = 1;
-
-												goto GET_OUT;
 											}
-											else if(current_time > start_time_next)		//下个策略已过期
+											else if(start_time > start_time_next)			//跨天
 											{
-												tmp_strategy->state = EXECUTED;			//当前策略已过期
-											}
-											else if(current_time < start_time)
-											{
-												goto GET_OUT;							//等待当前策略生效
+												if(start_time <= current_time && current_time <= gate24)
+												{
+													if(start_time == current_time)
+													{
+														if(ctrl->lock == 1)				//判断是否需要解开远程控制所
+														{
+															ctrl->lock = 0;
+														}
+													}
+
+													if(ctrl->lock == 0)		//远程控制已解锁
+													{
+														ctrl->control_type = tmp_strategy->type;
+														ctrl->brightness = tmp_strategy->brightness;
+													}
+
+//													if(current_time >= start_time_next)		//当前策略即将执行结束
+//													{
+//														tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
+//													}
+
+													ret = 1;
+
+													goto GET_OUT;
+												}
+												else if(gate0 <= current_time && current_time <= start_time_next)
+												{
+													if(gate0 == current_time)
+													{
+														if(ctrl->lock == 1)				//判断是否需要解开远程控制所
+														{
+															ctrl->lock = 0;
+														}
+													}
+
+													if(ctrl->lock == 0)		//远程控制已解锁
+													{
+														ctrl->control_type = tmp_strategy->type;
+														ctrl->brightness = tmp_strategy->brightness;
+													}
+
+													if(current_time >= start_time_next)		//当前策略即将执行结束
+													{
+														tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
+													}
+
+													ret = 1;
+
+													goto GET_OUT;
+												}
+												else if(current_time > start_time_next && current_time < start_time)		//下个策略已过期
+												{
+													tmp_strategy->state = RES_EXECUTE;			//当前策略需预留执行
+
+//													tmp_strategy = tmp_strategy->next;
+//													goto FOR_LOOP;
+												}
+												else if(current_time < start_time)
+												{
+													goto GET_OUT;							//等待当前策略生效
+												}
 											}
 										}
 										else	//下个策略的年月日没有全部匹配成功
 										{
+											start_time = tmp_strategy->hour * 3600 +
+						                                 tmp_strategy->minute * 60 +
+						                                 tmp_strategy->second;
+
 											if(start_time <= current_time)	//当前时间大于等于起始执行时间
 											{
 												if(start_time == current_time)
@@ -628,6 +727,10 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 									}
 									else	//下个策略是相对时间方式
 									{
+										start_time = tmp_strategy->hour * 3600 +
+						                             tmp_strategy->minute * 60 +
+						                             tmp_strategy->second;
+
 										if(start_time <= current_time)	//当前时间大于等于起始执行时间
 										{
 											if(start_time == current_time)
@@ -652,6 +755,10 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 								}
 								else	//当前策略是最后一个策略,没有下个策略
 								{
+									start_time = tmp_strategy->hour * 3600 +
+						                         tmp_strategy->minute * 60 +
+						                         tmp_strategy->second;
+
 									if(start_time <= current_time)	//当前时间大于等于起始执行时间
 									{
 										if(start_time == current_time)

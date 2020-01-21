@@ -21,7 +21,6 @@ u32 SysTick1ms = 0;					//1ms滴答时钟
 u32 SysTick10ms = 0;				//10ms滴答时钟
 u32 SysTick100ms = 0;				//10ms滴答时钟
 time_t SysTick1s = 0;				//1s滴答时钟
-time_t RTCTick1s = 0;				//1s滴答时钟
 
 /***************************其他*****************************/
 u8 GetTimeOK = 0;							//成功获取时间标志
@@ -40,6 +39,9 @@ ServerInfo_S ServerInfo;
 
 /**********************终端事件记录配置参数***********************/
 EventRecordConf_S EventRecordConf;
+long long EventEffective = 0;
+long long EventImportant = 0;
+long long EventReport = 0;
 
 /************************设备基本信息数据*************************/
 DeviceBaseInfo_S DeviceBaseInfo;
@@ -70,6 +72,7 @@ IlluminanceThreshold_S IlluminanceThreshold;
 
 /*********************单灯开关模式选择数据************************/
 u8 SwitchMode = 0;	//开关模式 1:年表控制 2:经纬度控制 3:光照度控制 4:常亮(常开)
+u8 UploadInterval = 0;	//电参数上报间隔
 
 /***********************单灯遥控操作数据*************************/
 RemoteControl_S RemoteControl;
@@ -444,10 +447,10 @@ u16 GetCRC16(u8 *data,u16 len)
 				ax ^= 0xA001;
 		}
 	}
-	
+
 	temp1 = (u8)((ax >> 8) & 0x00FF);
 	temp2 = (u8)(ax & 0x00FF);
-	
+
 	ax = ((((u16)temp2) << 8) & 0xFF00) + (u16)temp1;
 
 	return ax;
@@ -512,16 +515,6 @@ void SetSysTick1s(time_t sec)
 time_t GetSysTick1s(void)
 {
 	return SysTick1s;
-}
-void SetRTCTick1s(time_t sec)
-{
-	RTCTick1s = sec;
-}
-
-//获取系统1秒滴答时钟
-time_t GetRTCTick1s(void)
-{
-	return RTCTick1s;
 }
 
 //获取RTC状态
@@ -901,11 +894,11 @@ u8 ReadUpCommPortPara(void)
 		UpCommPortPara.master_retry_times 			= 3;
 		UpCommPortPara.need_master_confirm 			= 1;
 		UpCommPortPara.heart_beat_cycle 			= 30;
-		UpCommPortPara.random_peak_staggering_time 	= 50;
+		UpCommPortPara.random_peak_staggering_time 	= 1200;
 		UpCommPortPara.specify_peak_staggering_time = 0;
 	}
-	
-	srand((unsigned)GetRTCTick1s());
+
+	srand((unsigned int)GetSysTick1s());
 
 	return ret;
 }
@@ -1039,7 +1032,36 @@ u8 ReadEventRecordConf(void)
 		memset(EventRecordConf.effective,0xFF,8);
 		memset(EventRecordConf.important,0xFF,8);
 		memset(EventRecordConf.auto_report,0xFF,8);
+		
+		EventRecordConf.auto_report[5] = 0xF3;		//电流过大/过小事件不上报
 	}
+
+	EventEffective = ((((long long)EventRecordConf.effective[0]) << 56) & 0xFF00000000000000) +
+	                 ((((long long)EventRecordConf.effective[1]) << 48) & 0x00FF000000000000) +
+	                 ((((long long)EventRecordConf.effective[2]) << 40) & 0x0000FF0000000000) +
+	                 ((((long long)EventRecordConf.effective[3]) << 32) & 0x000000FF00000000) +
+	                 ((((long long)EventRecordConf.effective[4]) << 24) & 0x00000000FF000000) +
+	                 ((((long long)EventRecordConf.effective[5]) << 16) & 0x0000000000FF0000) +
+	                 ((((long long)EventRecordConf.effective[6]) <<  8) & 0x000000000000FF00) +
+	                 ((((long long)EventRecordConf.effective[7]) <<  0) & 0x00000000000000FF);
+
+	EventImportant = ((((long long)EventRecordConf.important[0]) << 56) & 0xFF00000000000000) +
+	                 ((((long long)EventRecordConf.important[1]) << 48) & 0x00FF000000000000) +
+	                 ((((long long)EventRecordConf.important[2]) << 40) & 0x0000FF0000000000) +
+	                 ((((long long)EventRecordConf.important[3]) << 32) & 0x000000FF00000000) +
+	                 ((((long long)EventRecordConf.important[4]) << 24) & 0x00000000FF000000) +
+	                 ((((long long)EventRecordConf.important[5]) << 16) & 0x0000000000FF0000) +
+	                 ((((long long)EventRecordConf.important[6]) <<  8) & 0x000000000000FF00) +
+	                 ((((long long)EventRecordConf.important[7]) <<  0) & 0x00000000000000FF);
+
+	EventReport =    ((((long long)EventRecordConf.auto_report[0]) << 56) & 0xFF00000000000000) +
+	                 ((((long long)EventRecordConf.auto_report[1]) << 48) & 0x00FF000000000000) +
+	                 ((((long long)EventRecordConf.auto_report[2]) << 40) & 0x0000FF0000000000) +
+	                 ((((long long)EventRecordConf.auto_report[3]) << 32) & 0x000000FF00000000) +
+	                 ((((long long)EventRecordConf.auto_report[4]) << 24) & 0x00000000FF000000) +
+	                 ((((long long)EventRecordConf.auto_report[5]) << 16) & 0x0000000000FF0000) +
+	                 ((((long long)EventRecordConf.auto_report[6]) <<  8) & 0x000000000000FF00) +
+	                 ((((long long)EventRecordConf.auto_report[7]) <<  0) & 0x00000000000000FF);
 
 	return ret;
 }
@@ -1049,7 +1071,7 @@ u8 ReadDeviceBaseInfo(void)
 {
 	u8 ret = 0;
 	u8 buf[DEV_BASIC_INFO_LEN];
-	u8 default_mail_id[8] = {0x00,0x29,0x20,0x01,0x00,0x00,0x11,0x20};	//设备缺省通信地址
+	u8 default_mail_id[8] = {0x00,0x29,0x20,0x01,0x00,0x00,0x00,0x20};	//设备缺省通信地址
 
 	memset(buf,0,DEV_BASIC_INFO_LEN);
 
@@ -1135,9 +1157,9 @@ u8 ReadEventDetectThreConf(void)
 	}
 	else
 	{
-		EventDetectConf.over_current_ratio 			= 10;
+		EventDetectConf.over_current_ratio 			= 20;
 		EventDetectConf.over_current_recovery_ratio = 5;
-		EventDetectConf.low_current_ratio 			= 10;
+		EventDetectConf.low_current_ratio 			= 20;
 		EventDetectConf.low_current_recovery_ratio 	= 5;
 
 		EventDetectConf.capacitor_fault_pf_ratio[0] = 0x00;				//50 见协议附录a.5
@@ -1324,7 +1346,7 @@ u8 ReadLampsRunMode(void)
 		else
 		{
 			LampsRunMode.run_mode[i].lamps_id  				= 0x0001;	//灯具序号
-			LampsRunMode.run_mode[i].initial_brightness  	= 255;		//默认亮度100%
+			LampsRunMode.run_mode[i].initial_brightness  	= 100;		//默认亮度100%
 			LampsRunMode.run_mode[i].energy_saving_mode_id  = 0x01;		//策略(节能模式)编号
 		}
 	}
@@ -1431,7 +1453,7 @@ u8 ReadAppointmentControl(void)
 		else
 		{
 			AppointmentControl.run_mode[i].lamps_id 				= 0x00;	//灯具序号
-			AppointmentControl.run_mode[i].initial_brightness 		= 255;	//默认亮度100%
+			AppointmentControl.run_mode[i].initial_brightness 		= 100;	//默认亮度100%
 			AppointmentControl.run_mode[i].energy_saving_mode_id 	= 0;	//节能模式编号
 		}
 	}
@@ -1480,6 +1502,28 @@ u8 ReadSwitchMode(void)
 	else
 	{
 		SwitchMode = 4;
+	}
+
+	return ret;
+}
+
+//电参数上传间隔
+u8 ReadUploadInterval(void)
+{
+	u8 ret = 0;
+	u8 buf[UPLOAD_INTERVAL_LEN];
+
+	memset(buf,0,UPLOAD_INTERVAL_LEN);
+
+	ret = ReadDataFromEepromToMemory(buf,UPLOAD_INTERVAL_ADD,UPLOAD_INTERVAL_LEN);
+
+	if(ret == 1)
+	{
+		UploadInterval = *(buf + 0);
+	}
+	else
+	{
+		UploadInterval = 0;
 	}
 
 	return ret;
@@ -1735,6 +1779,20 @@ void WriteFrameWareStateToEeprom(void)
 	WriteDataFromMemoryToEeprom(temp_buf,E_FW_UPDATE_STATE_ADD,E_FW_UPDATE_STATE_LEN - 2);
 }
 
+//复位固件升级信息
+void ResetFrameWareState(void)
+{
+	FrameWareState.state 			= FIRMWARE_FREE;
+	FrameWareState.total_bags 		= 0;
+	FrameWareState.current_bag_cnt 	= 0;
+	FrameWareState.bag_size 		= 0;
+	FrameWareState.last_bag_size 	= 0;
+
+	FrameWareState.total_size 		= 0;
+
+	WriteFrameWareStateToEeprom();			//将默认值写入EEPROM
+}
+
 //读取固件设计状态
 u8 ReadFrameWareState(void)
 {
@@ -1769,15 +1827,8 @@ u8 ReadFrameWareState(void)
 	else
 	{
 		RESET_STATE:
-		FrameWareState.state 			= FIRMWARE_FREE;
-		FrameWareState.total_bags 		= 0;
-		FrameWareState.current_bag_cnt 	= 0;
-		FrameWareState.bag_size 		= 0;
-		FrameWareState.last_bag_size 	= 0;
-
-		FrameWareState.total_size 		= 0;
-
-		WriteFrameWareStateToEeprom();			//将默认值写入EEPROM
+		
+		ResetFrameWareState();
 	}
 
 	if(FrameWareState.state == FIRMWARE_DOWNLOADING ||
@@ -1863,7 +1914,7 @@ u8 ReadFactoryCode(void)
 	}
 	else
 	{
-		sprintf((char *)DeviceInfo.factory_code, "0011");
+		sprintf((char *)DeviceInfo.factory_code, "0029");
 	}
 
 	return ret;
@@ -1885,7 +1936,7 @@ u8 ReadFactoryDeviceId(void)
 	}
 	else
 	{
-		sprintf((char *)DeviceInfo.factory_dev_id, "00000011");
+		sprintf((char *)DeviceInfo.factory_dev_id, "00000029");
 	}
 
 	return ret;
@@ -2175,7 +2226,7 @@ u8 CheckAppointmentControlValid(void)
 
 	e_seconds = mktime(&tm_time);
 
-	if(s_seconds >= e_seconds)	//起始时间等于或晚于结束时间
+	if(s_seconds >= e_seconds)					//起始时间等于或晚于结束时间
 	{
 		return 0;
 	}
@@ -2189,7 +2240,9 @@ u8 CheckAppointmentControlValid(void)
 
 	n_seconds = mktime(&tm_time);
 
-	if(s_seconds <= n_seconds && n_seconds <= e_seconds)	//当前时间大于等于起始时间并且小于等于结束日时间
+	if(s_seconds <= n_seconds && 
+	   n_seconds <= e_seconds && 
+	   s_seconds < e_seconds)					//当前时间大于等于起始时间并且小于等于结束日时间
 	{
 		ret = 1;
 	}
@@ -2460,6 +2513,7 @@ void ReadParametersFromEEPROM(void)
 	ReadAppointmentControl();
 	ReadIlluminanceThreshold();
 	ReadSwitchMode();
+	ReadUploadInterval();
 	ReadFTP_ServerInfo();
 	ReadFTP_FrameWareInfo();
 	ReadFactoryCode();

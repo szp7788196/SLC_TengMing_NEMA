@@ -48,7 +48,7 @@ int main(void)
 	LED_Init();
 	CD4051B_Init();
 	TIM2_Init(99,7199);
-	TIM5_Int_Init(2000,36 - 1);
+	TIM5_Init(2000,36 - 1);
 	USART1_Init(115200);
 	USART3_Init(4800);
 	USART2_Init(9600);

@@ -9,6 +9,11 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 	u16 add_pos = 0;
 	u8 buf[24];
 
+	if((EventEffective & ((long long)1 << ((long long)ecx - 1))) == 0x00)
+	{
+		return;
+	}
+
 	if(xSchedulerRunning == 1)
 	{
 		xSemaphoreTake(xMutex_EVENT_RECORD, portMAX_DELAY);
@@ -26,14 +31,11 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 
 	buf[22] = (u8)(crc_cal >> 8);
 	buf[23] = (u8)(crc_cal & 0x00FF);
-	
-	if(ecx == 15 ||
-	   ecx == 16 ||
-	   ecx == 28 ||
-	   ecx == 52)			//一般事件
+
+	if((EventImportant & ((long long)1 << ((long long)ecx - 1))) == 0x00)			//一般事件
 	{
 		add_pos = E_NORMAL_ADD;
-		
+
 		EventRecordList.lable2[EventRecordList.ec2] = ecx;	//更新事件列表
 
 		crc_cal = GetCRC16(EventRecordList.lable2,256);
@@ -47,13 +49,13 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 		EventRecordList.ec2 ++;				//更新事件计数器
 
 		WriteDataFromMemoryToEeprom(&EventRecordList.ec2,EC2_ADD, 1);
-		
+
 		EventRecordList.normal_event_flag ++;
 	}
 	else					//重要事件
 	{
 		add_pos = E_IMPORTEAT_ADD;
-		
+
 		EventRecordList.lable1[EventRecordList.ec1] = ecx;	//更新事件列表
 
 		crc_cal = GetCRC16(EventRecordList.lable1,256);
@@ -67,7 +69,7 @@ void RecordEventsECx(u8 ecx,u8 len,u8 *msg)
 		EventRecordList.ec1 ++;				//更新事件计数器
 
 		WriteDataFromMemoryToEeprom(&EventRecordList.ec1,EC1_ADD, 1);
-		
+
 		EventRecordList.important_event_flag ++;
 	}
 
@@ -622,6 +624,15 @@ void CheckEventsEC52(RemoteControl_S ctrl)
 	static RemoteControl_S control;
 	u8 buf[14];
 	static u8 cnt = 0;
+	static u8 first = 1;
+
+	if(first == 1)
+	{
+		first = 0;
+
+		control.control_type = 1;
+		control.brightness = 0;
+	}
 
 	if(LampsParameters.num != 0)		//有已经配置过的灯
 	{

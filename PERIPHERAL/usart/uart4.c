@@ -15,14 +15,14 @@
 volatile char rsp_ok=0;
 RingBuf ring_fifo;
 RingBuf ring_fifo1;
-uint8_t rx_fifo[1024];
-uint8_t rx_fifo1[1024];
+uint8_t rx_fifo[NET_BUF_MAX_LEN];
+uint8_t rx_fifo1[NET_BUF_MAX_LEN];
 int8_t dl_buf_id = -1;
 
-FIFO(dl_buf,3,1024);			//此处第二个形参不可以为1，否则会出现注册失败问题，建议>=2(2019/08/13常州出差解决)
+FIFO(dl_buf,3,NET_BUF_MAX_LEN);
 
 #define UART_DMA 1
-#define MAX_RCV_LEN 1024
+#define MAX_RCV_LEN NET_BUF_MAX_LEN
 #ifdef UART_DMA
 #include "stm32f10x.h"
 #include "stm32f10x_dma.h"
@@ -193,10 +193,10 @@ void UART4_IRQHandler(void)
 		{
 			fifo_put(dl_buf_id,ringbuf_elements(&ring_fifo),ring_fifo.data);
 		}
-//		else if((uint8_t *)strstr((const char *)ring_fifo.data, "+CEREG:0") != NULL)
-//		{
-
-//		}
+		else if((uint8_t *)strstr((const char *)ring_fifo.data, "REBOOT_CAUSE_UNKNOWN") != NULL)
+		{
+			ReConnectToServer = 0x81;
+		}
 //		else if((uint8_t *)strstr((const char *)ring_fifo.data, "+CEREG:1") != NULL)
 //		{
 

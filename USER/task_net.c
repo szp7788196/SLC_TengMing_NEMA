@@ -57,16 +57,7 @@ void execute_callback( uint16_t       objid,
 	u8 hex_buf_in[512];
 	u8 hex_buf_out[512];
 	char str_buf[1024];
-
-//	u8 *hex_buf_in;
-//	u8 *hex_buf_out;
-//	char *str_buf;
-
 	u16 len = 0;
-
-//	hex_buf_in = (u8 *)mymalloc(sizeof(u8) * 1024);
-//	hex_buf_out = (u8 *)mymalloc(sizeof(u8) * 1024);
-//	str_buf = (char *)mymalloc(sizeof(char) * 1024);
 
 #ifdef DEBUG_LOG
     printf( "execute /%d/%d/%d\r\n",objid,instid,resid );
@@ -101,20 +92,20 @@ void res_update(void)
 	static time_t times_sec1 = 0;
 	static u16 download_time_out = 0;
 	static u8  download_failed_times = 0;
-	u8 buf[64];
-	char str_buf[128];
+	u8 buf[512];
+	char str_buf[1024];
 	u8 afn = 0;
 	u8 fn = 0;
 	u16 len = 0;
 
 	if(NeedServerConfirm != 0)			//有需要被主站确认的消息,重发上一条数据
-	{	
+	{
 		if(GetSysTick1s() - times_sec1 >= UpCommPortPara.wait_slave_rsp_timeout)
 		{
 			times_sec1 = GetSysTick1s();
-			
+
 			NeedServerConfirm --;
-			
+
 			LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;				//数据上传标志置位
 		}
 
@@ -127,7 +118,11 @@ void res_update(void)
 			times_sec = GetSysTick1s();
 		}
 
+#ifdef PUBLIC_NET_NO_APN
+		if(GetSysTick1s() - times_sec >= 20)
+#else
 		if(GetSysTick1s() - times_sec >= LoginStaggeredPeakInterval)
+#endif
 		{
 			times_sec = GetSysTick1s();
 
@@ -146,7 +141,30 @@ void res_update(void)
 			LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
 		}
 	}
-	else if(GetSysTick1s() - times_sec >= HeartBeatStaggeredPeakInterval)
+	else if(GetSysTick1s() - times_sec >= UploadDataStaggeredPeakInterval && 
+		    UploadInterval != 0)
+	{
+		times_sec = GetSysTick1s();
+
+		if(UpCommPortPara.random_peak_staggering_time != 0)		//使用随机错峰时间
+		{
+			UploadDataStaggeredPeakInterval = UploadInterval * 60 + rand() % UpCommPortPara.random_peak_staggering_time;
+		}
+		else													//使用固定错峰时间
+		{
+			UploadDataStaggeredPeakInterval = UploadInterval * 60 + UpCommPortPara.specify_peak_staggering_time;
+		}
+
+		afn = 0x0C;
+		fn = 69;
+
+		LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
+	}
+#ifdef PUBLIC_NET_NO_APN
+		else if(GetSysTick1s() - times_sec >= 20)
+#else
+		else if(GetSysTick1s() - times_sec >= HeartBeatStaggeredPeakInterval)
+#endif
 	{
 		times_sec = GetSysTick1s();
 
@@ -168,10 +186,10 @@ void res_update(void)
 		    EventRecordList.normal_event_flag != 0)
 	{
 		times_sec1 = GetSysTick1s();
-		
+
 		afn = 0x0E;
 		fn = 2;
-		
+
 		LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
 	}
 	else if(FrameWareState.state == FIRMWARE_DOWNLOADING)
@@ -336,12 +354,14 @@ void vTaskNET(void *pvParameters)
 	if(UpCommPortPara.random_peak_staggering_time != 0)		//使用随机错峰时间
 	{
 		LoginStaggeredPeakInterval 		= rand() % UpCommPortPara.random_peak_staggering_time;
-		HeartBeatStaggeredPeakInterval 	= UpCommPortPara.heart_beat_cycle * 60 	+ rand() % UpCommPortPara.random_peak_staggering_time;
+		HeartBeatStaggeredPeakInterval 	= UpCommPortPara.heart_beat_cycle * 60 + rand() % UpCommPortPara.random_peak_staggering_time;
+		UploadDataStaggeredPeakInterval = UploadInterval * 60 + rand() % UpCommPortPara.random_peak_staggering_time;
 	}
 	else													//使用固定错峰时间
 	{
 		LoginStaggeredPeakInterval 		= UpCommPortPara.specify_peak_staggering_time;
 		HeartBeatStaggeredPeakInterval 	= UpCommPortPara.heart_beat_cycle * 60 	+ UpCommPortPara.specify_peak_staggering_time;
+		UploadDataStaggeredPeakInterval = UploadInterval * 60 + UpCommPortPara.specify_peak_staggering_time;
 	}
 
 	RE_INIT_M53XX:
@@ -383,7 +403,7 @@ void vTaskNET(void *pvParameters)
 		 printf( "connect OneNET success.\r\n" );
 #endif
 	}
-	
+
 	time_s = GetSysTick1s();
 
 	while(1)
@@ -408,7 +428,10 @@ void vTaskNET(void *pvParameters)
                                      &BcxxRssi,
                                      &BcxxSnr,
 									 &BcxxPci,
-                                     &BcxxRsrq);
+                                     &BcxxRsrq,
+                                     &BcxxEARFCN,
+				                     &BcxxCellID,
+				                     &BcxxBand);
 
 				SyncDataTimeFormBcxxModule(3600);			//每隔3600秒自动对时
 			}
@@ -437,6 +460,8 @@ void vTaskNET(void *pvParameters)
 		{
 			ReConnectToServer = 0;
 
+			unregister_all_things();
+			
 			goto RE_INIT_M53XX;
 		}
 
