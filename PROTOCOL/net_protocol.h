@@ -12,7 +12,7 @@
 #define MAX_USER_DATA_LEN	512
 
 #define LAMPS_SWITCH_MAX_DAYS		366		//开关灯最大天数
-#define LAMPS_MAX_NUM				1		//最大灯具数量
+#define LAMPS_MAX_NUM				5		//最大灯具数量
 #define MAX_OPERATION_TIMES			30		//单个节能模式操作次数
 #define MAX_ENERGY_SAVING_MODE_NUM	5		//节能模式的最大个数
 
@@ -144,7 +144,9 @@ typedef struct DeviceBaseInfo				//设备基本信息
 	u8 mail_add[8];							//终端地址(通信地址)
 	u8 longitude[5];						//经度
 	u8 latitude[5];							//纬度
-}DeviceBaseInfo_S;
+	
+	u16 crc16;
+}__attribute__((packed))DeviceBaseInfo_S;
 
 typedef struct RSA_PublicKey				//RSA加密参数
 {
@@ -192,13 +194,16 @@ typedef struct RunMode						//灯具运行模式(具体模式)
 	u8 initial_brightness;					//初始调光值
 	u8 energy_saving_mode_id;				//节能模式编号
 	u16 lamps_id;							//灯具序号
-}RunMode_S;
+}__attribute__((packed))RunMode_S;
 
 typedef struct LampsRunMode					//灯具运行模式
 {
+	u8 idle;
 	u8 num;									//灯具个数
 	
 	RunMode_S run_mode[LAMPS_MAX_NUM];		//每个灯的具体运行模式
+	
+	u16 crc16;
 }LampsRunMode_S;
 
 typedef struct ActualOperation				//实际操作内容
@@ -208,7 +213,7 @@ typedef struct ActualOperation				//实际操作内容
 	u8 brightness;							//开关档位(亮度)
 	u8 relative_time;						//相对时间(单位:5min)
 	u8 absolute_time[6];					//绝对时间
-}ActualOperation_S;
+}__attribute__((packed))ActualOperation_S;
 
 typedef struct EnergySavingMode							//节能模式
 {
@@ -217,7 +222,9 @@ typedef struct EnergySavingMode							//节能模式
 	u8 control_times;									//控制次数
 	
 	ActualOperation_S operation[MAX_OPERATION_TIMES];	//具体操作
-}EnergySavingMode_S;
+	
+	u16 crc16;
+}__attribute__((packed))EnergySavingMode_S;
 
 typedef struct AppointmentControl			//单灯预约控制
 {
@@ -227,7 +234,9 @@ typedef struct AppointmentControl			//单灯预约控制
 	u8 lamps_num;							//被控灯具数量
 	
 	RunMode_S run_mode[LAMPS_MAX_NUM];		//控制模式
-}AppointmentControl_S;
+	
+	u16 crc16;
+}__attribute__((packed))AppointmentControl_S;
 
 typedef struct IlluminanceThreshold			//光照度开关阈值
 {

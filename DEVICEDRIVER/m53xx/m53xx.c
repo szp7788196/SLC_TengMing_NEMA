@@ -163,6 +163,8 @@ void netdev_init(void)
 
 	if(m53xx_set_AT_CEREG(2) != 1)
 		goto RE_INIT;
+	
+//	bcxx_set_AT_CGCONTRDP();
 
 //	if(m53xx_set_AT_MREGSWT(0) != 1)
 //		goto RE_INIT;
@@ -180,6 +182,8 @@ void netdev_init(void)
 	if(!SendCmd("AT+CGATT?\r\n","+CGATT:1", 1000,5,TIMEOUT_5S))
 	{
 		ncsearfcn_enable ++;
+		
+		m53xx_get_AT_CSQ(&BcxxCsq);		//ªÒ»°Õ®—∂◊¥Ã¨÷ ¡ø
 
 		goto RE_INIT;
 	}
@@ -914,7 +918,9 @@ void mipl_generate(void)
 	memset(cmd_tx_buff,0,150);
 
 #ifdef CHANG_ZHOU_APN
-	strcpy(cmd_tx_buff,"AT+MIPLCREATE=50,130032F10003F2002404001100000000000000133139322E3136382E34392E3231303A35363833000131F300087100000000,0,50,0\r\n"); 	//≥£÷›∆ΩÃ®	APNø®
+//	strcpy(cmd_tx_buff,"AT+MIPLCREATE=50,130032F10003F2002404001100000000000000133139322E3136382E34392E3231303A35363833000131F300087100000000,0,50,0\r\n"); 	//≥£÷›∆ΩÃ®	APNø®
+	strcpy(cmd_tx_buff,"AT+MIPLCREATE=49,130031F10003F2002304001100000000000000123137322E31382E32342E3134323A35363833000131F300087100000000,0,49,0\r\n"); 	//3??Y??Ï®	APN?®
+
 	SendCmd(cmd_tx_buff,"+MIPLCREATE:0",300,0,TIMEOUT_2S);
 #endif
 

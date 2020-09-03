@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "event.h"
 #include "task_main.h"
+#include "stmflash.h"
 
 
 ControlMsg_S control_msg_in;
@@ -1208,6 +1209,8 @@ u16 UserDataUnitHandle(void)
 						WriteDataFromMemoryToEeprom(msg + 0,
 					                                DEV_BASIC_INFO_ADD,
 					                                DEV_BASIC_INFO_LEN - 2);	//将数据写入EEPROM
+					
+						WriteDeviceBaseInfoFlash();
 
 						user_data_out.data_unit[i].pn_fn.fn = 1;
 					break;
@@ -1339,6 +1342,8 @@ u16 UserDataUnitHandle(void)
 							                            LAMPS_MODE_ADD + k * LAMPS_MODE_LEN,
 							                            LAMPS_MODE_LEN - 2);	//将数据写入EEPROM
 						}
+						
+						WriteLampsRunModeFlash();
 
 						NeedUpdateStrategyList = 1;		//需要更新策略列表
 
@@ -1374,6 +1379,8 @@ u16 UserDataUnitHandle(void)
 															        E_SAVE_MODE_CONTENT_ADD + k * E_SAVE_MODE_LEN + j * E_SAVE_MODE_CONTENT_LEN,
 								                                    E_SAVE_MODE_CONTENT_LEN - 2);	//将数据写入EEPROM
 									}
+									
+									WriteEnergySavingModeFlash(k);
 								}
 								break;
 							}
@@ -1402,14 +1409,20 @@ u16 UserDataUnitHandle(void)
 //							AppointmentControl.run_mode[k].initial_brightness 		= *(msg + k * 4 + 2);
 //							AppointmentControl.run_mode[k].energy_saving_mode_id 	= *(msg + k * 4 + 3);
 
-							AppointmentControl.run_mode[k].lamps_id 				= ((((u16)(*(msg + k * 4 + 1))) << 8) + (u16)(*(msg + k * 4 + 0)));
+							AppointmentControl.run_mode[k].lamps_id 				= ((((u16)(*(msg + k * 3 + 1))) << 8) + (u16)(*(msg + k * 3 + 0)));
+							AppointmentControl.run_mode[k].energy_saving_mode_id 	= *(msg + k * 3 + 2);
 							AppointmentControl.run_mode[k].initial_brightness 		= 100;
-							AppointmentControl.run_mode[k].energy_saving_mode_id 	= *(msg + k * 4 + 2);
+							
+							memset(temp_buf,0,8);
+							memcpy(temp_buf,msg + k * 3,3);
+							temp_buf[3] = AppointmentControl.run_mode[k].initial_brightness;
 
-							WriteDataFromMemoryToEeprom(msg + k * (APPOIN_CONTENT_LEN - 2) + 0,
+							WriteDataFromMemoryToEeprom(temp_buf,
 							                            APPOIN_CONTENT_ADD + k * APPOIN_CONTENT_LEN,
 							                            APPOIN_CONTENT_LEN - 2);	//将数据写入EEPROM
 						}
+						
+						WriteAppointmentControlFlash();
 
 						user_data_out.data_unit[i].pn_fn.fn = 1;
 					break;
@@ -2556,7 +2569,7 @@ u16 UserDataUnitHandle(void)
 						WriteFrameWareStateToEeprom();	//将固件升级状态写入EEPROM
 
 //						start_page = (FIRMWARE_BUCKUP_FLASH_BASE_ADD - 0x08000000) / 2048;				//得到备份区的起始扇区
-						page_num = (FIRMWARE_MAX_FLASH_ADD - FIRMWARE_BUCKUP_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
+						page_num = (FIRMWARE_LAST_PAGE_ADD - FIRMWARE_BUCKUP_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
 
 						FLASH_Unlock();						//解锁FLASH
 

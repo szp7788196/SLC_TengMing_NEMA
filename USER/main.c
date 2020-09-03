@@ -31,6 +31,9 @@ RCC_ClocksTypeDef RCC_Clocks;
 
 //u8 jjjj[100];
 
+
+u16 size = 0;
+
 int main(void)
 {
 	SCB->VTOR = FLASH_BASE | 0x06000; 	/* Vector Table Relocation in Internal FLASH. */
@@ -55,6 +58,11 @@ int main(void)
 	UART4_Init(9600);
 
 	__set_PRIMASK(0);	//开启全局中断
+	
+//	size = sizeof(DeviceBaseInfo_S);
+//	size = sizeof(LampsRunMode_S);
+//	size = sizeof(AppointmentControl_S);
+//	size = sizeof(EnergySavingMode_S);
 
 //	NetDataFrameHandle(test_buf,87,jjjj);
 

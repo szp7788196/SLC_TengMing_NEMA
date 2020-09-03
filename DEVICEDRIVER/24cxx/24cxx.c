@@ -18,6 +18,8 @@ u8 AT24CXX_ReadOneByte(u16 ReadAddr)
 		xSemaphoreTake(xMutex_IIC1, portMAX_DELAY);
 	}
 	
+	__set_PRIMASK(1);					//关闭全局中断
+	
     IIC1_Start();
 	if(EE_TYPE>AT24C16)
 	{
@@ -35,6 +37,8 @@ u8 AT24CXX_ReadOneByte(u16 ReadAddr)
     temp=IIC1_Read_Byte(0);
     IIC1_Stop();						//产生一个停止条件
 	
+	__set_PRIMASK(0);	//开启全局中断
+	
 	if(xSchedulerRunning == 1)
 	{
 		xSemaphoreGive(xMutex_IIC1);
@@ -50,13 +54,15 @@ void AT24CXX_WriteOneByte(u16 WriteAddr,u8 DataToWrite)
 	u8 data = 0;
 	u8 times = 0;
 	
-	if(xSchedulerRunning == 1)
-	{
-		xSemaphoreTake(xMutex_IIC1, portMAX_DELAY);
-	}
-
 	do
 	{
+		if(xSchedulerRunning == 1)
+		{
+			xSemaphoreTake(xMutex_IIC1, portMAX_DELAY);
+		}
+		
+		__set_PRIMASK(1);					//关闭全局中断
+		
 		IIC1_Start();
 		if(EE_TYPE>AT24C16)
 		{
@@ -74,6 +80,9 @@ void AT24CXX_WriteOneByte(u16 WriteAddr,u8 DataToWrite)
 		IIC1_Send_Byte(DataToWrite);     	//发送字节
 		IIC1_Wait_Ack();
 		IIC1_Stop();						//产生一个停止条件
+		
+		__set_PRIMASK(0);	//开启全局中断
+		
 		delay_ms(10);
 		
 		if(xSchedulerRunning == 1)

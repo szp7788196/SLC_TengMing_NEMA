@@ -12,7 +12,7 @@ unsigned portBASE_TYPE MAIN_Satck;
 
 void vTaskMAIN(void *pvParameters)
 {
-	time_t times_sec = 0;
+//	time_t times_sec = 0;
 	u8 up_date_strategy_state = 0;
 	time_t time_cnt = 0;
 	u8 get_e_para_ok = 0;
@@ -21,9 +21,9 @@ void vTaskMAIN(void *pvParameters)
 
 	while(1)
 	{
-		if(GetSysTick1s() - times_sec >= 1)				//每1秒钟轮训一次
-		{
-			times_sec = GetSysTick1s();
+//		if(GetSysTick1s() - times_sec >= 1)				//每1秒钟轮训一次
+//		{
+//			times_sec = GetSysTick1s();
 
 			if(GetTimeOK != 0)							//系统时间状态
 			{
@@ -39,7 +39,7 @@ void vTaskMAIN(void *pvParameters)
 					LookUpStrategyList(ControlStrategy,&CurrentControl,&up_date_strategy_state);	//轮训策略列表
 				}
 			}
-		}
+//		}
 
 		if(ContrastControl._switch != CurrentControl._switch ||				//开关状态有变化
 		   ContrastControl.control_type != CurrentControl.control_type ||	//控制方式有变化
@@ -269,9 +269,24 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 	static u8 appointment_control_valid = 0;	//预约控制生效标志
 	static u8 appointment_control_valid_c = 0;	//预约控制生效标志 比较
 	static u8 appointment_control_valid_r = 0;	//预约控制生效标志 刷新
-
+	
+	static RemoteControl_S last_ctrl;
+	static RemoteControl_S current_ctrl;
+	static u8 first_flag = 1;
+	
 	pControlStrategy tmp_strategy = NULL;
-
+	
+	if(first_flag == 1)
+	{
+		first_flag = 0;
+		
+		last_ctrl.control_type = 2;
+		last_ctrl.brightness = 255;
+		
+		current_ctrl.control_type = 2;
+		current_ctrl.brightness = 255;
+	}
+	
 	appointment_control_valid = CheckAppointmentControlValid();		//查看预约控制是否生效
 
 	if(appointment_control_valid_c != appointment_control_valid)	//预约控制状态有变化
@@ -291,7 +306,8 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 
 		if(ret == 0)						//更新策略列表失败
 		{
-//			ctrl->brightness = LampsRunMode.run_mode[0].initial_brightness;		//设置当前亮度为当前运行模式的初始亮度
+			current_ctrl.control_type = 2;
+			current_ctrl.brightness = (u8)(((float)LampsRunMode.run_mode[0].initial_brightness / 100.0f) * 255.0f);		//设置当前亮度为当前运行模式的初始亮度
 
 			return 0;
 		}
@@ -328,19 +344,10 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 
 	if(strategy_head != NULL && ControlStrategy->next != NULL)	//策略列表不为空
 	{
-//		FOR_LOOP:
-
+		ret = 0;
+		
 		for(tmp_strategy = strategy_head->next; tmp_strategy != NULL; tmp_strategy = tmp_strategy->next)
 		{
-			if(tmp_strategy->state == RES_EXECUTE)	//查看此条策略是否为保留执行策略
-			{
-				tmp_strategy->state = EXECUTING;
-
-				start_time = tmp_strategy->hour * 3600 +
-						     tmp_strategy->minute * 60 +
-						     tmp_strategy->second;
-			}
-
 			switch(tmp_strategy->mode)
 			{
 				case 0:		//相对时间方式
@@ -350,461 +357,212 @@ u8 LookUpStrategyList(pControlStrategy strategy_head,RemoteControl_S *ctrl,u8 *u
 							start_time = GetSysTick1s();			//获取开始执行时间 秒
 							total_time = tmp_strategy->time_re;		//获取执行结束时间 秒
 
-							ctrl->lock = 0;		//解锁远程控制
-
 							tmp_strategy->state = EXECUTING;		//下个状态将切换为 正在执行状态
 
 							if(tmp_strategy->state == EXECUTING)	//此判断无实际作用,置位消除编译器警告
 							{
-								goto GET_OUT;
+								goto UPDATE_PERCENT;
 							}
 						break;
 
 						case EXECUTING:			//正在执行状态
 							current_time = GetSysTick1s();		//获取当前时间
 
-							if(current_time - start_time <= total_time)
+							if(current_time - start_time >= total_time)
 							{
-								if(ctrl->lock == 0)				//远程控制已解锁
-								{
-									ctrl->control_type = tmp_strategy->type;
-									ctrl->brightness = tmp_strategy->brightness;
-								}
-
-								if(current_time - start_time >= total_time)	//到了结束时间
-								{
-									tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
-								}
-
-								ret = 1;
-
-								goto GET_OUT;
+								current_ctrl.control_type = tmp_strategy->type;
+								current_ctrl.brightness = tmp_strategy->brightness;
+								
+								tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
 							}
-						break;
+							else
+							{
+								current_ctrl.control_type = 2;
+								current_ctrl.brightness = (u8)(((float)LampsRunMode.run_mode[0].initial_brightness / 100.0f) * 255.0f);		//设置当前亮度为当前运行模式的初始亮度
+							}
+							
+							goto UPDATE_PERCENT;
+//						break;
 
 						case EXECUTED:			//已过期状态
 
 						break;
 
 						default:				//未知状态
-//							ctrl->brightness = LampsRunMode.run_mode[0].initial_brightness;		//设置当前亮度为当前运行模式的初始亮度
+
 						break;
 					}
 				break;
 
 				case 1:		//绝对时间方式
-					switch(tmp_strategy->state)
+					if(tmp_strategy->year != 0)		//判断策略中年是否有效
 					{
-						case WAIT_EXECUTE:		//等待执行状态
-							start_time = tmp_strategy->hour * 3600 +
-						                 tmp_strategy->minute * 60 +
-						                 tmp_strategy->second;
+						y_m_d_effective |= 0x04;
+					}
 
-							if(tmp_strategy->year != 0)		//判断策略中年是否有效
+					if(tmp_strategy->month != 0)	//判断策略中月是否有效
+					{
+						y_m_d_effective |= 0x02;
+					}
+
+					if(tmp_strategy->date != 0)		//判断策略中日是否有效
+					{
+						y_m_d_effective |= 0x01;
+					}
+				
+					y_m_d_matched = 0x07;			//初始化年月日匹配成功标志
+					
+					if((y_m_d_effective & 0x04) != (u32)0x00000000 &&
+					   tmp_strategy->year != calendar.w_year - 2000)
+					{
+						y_m_d_matched &= ~(0x04);
+					}
+
+					if((y_m_d_effective & 0x02) != (u32)0x00000000 &&
+					   tmp_strategy->month != calendar.w_month)
+					{
+						y_m_d_matched &= ~(0x02);
+					}
+
+					if((y_m_d_effective & 0x01) != (u32)0x00000000 &&
+					   tmp_strategy->date != calendar.w_date)
+					{
+						y_m_d_matched &= ~(0x01);
+					}
+				
+					if(y_m_d_matched == 0x07)
+					{
+						if(tmp_strategy->hour 	== calendar.hour &&
+						   tmp_strategy->minute == calendar.min && 
+						   tmp_strategy->second == calendar.sec)		//判断当前时间是否同该条策略时间相同
+						{
+							ret = 1;
+						}
+						else if(tmp_strategy->next != NULL && tmp_strategy->next->mode == 1)
+						{
+							if(tmp_strategy->next->year != 0)	//判断策略中年是否有效
 							{
-								y_m_d_effective |= 0x04;
+								y_m_d_effective_next |= 0x04;
 							}
 
-							if(tmp_strategy->month != 0)	//判断策略中月是否有效
+							if(tmp_strategy->next->month != 0)	//判断策略中月是否有效
 							{
-								y_m_d_effective |= 0x02;
+								y_m_d_effective_next |= 0x02;
 							}
 
-							if(tmp_strategy->date != 0)		//判断策略中日是否有效
+							if(tmp_strategy->next->date != 0)	//判断策略中日是否有效
 							{
-								y_m_d_effective |= 0x01;
+								y_m_d_effective_next |= 0x01;
 							}
 
-							y_m_d_matched = 0x07;			//初始化年月日匹配成功标志
-
-							if(tmp_strategy->next != NULL)	//下个策略有效
+							y_m_d_matched_next = 0x07;			//初始化年月日匹配成功标志
+							
+							if(y_m_d_effective_next & 0x04 != (u32)0x00000000 &&
+							   tmp_strategy->next->year != calendar.w_year - 2000)
 							{
-								if(tmp_strategy->next->mode == 1)		//下个策略也是绝对时间方式
+								y_m_d_matched_next &= ~(0x04);
+							}
+
+							if(y_m_d_effective_next & 0x02 != (u32)0x00000000 &&
+							   tmp_strategy->next->month != calendar.w_month)
+							{
+								y_m_d_matched_next &= ~(0x02);
+							}
+
+							if(y_m_d_effective_next & 0x01 != (u32)0x00000000 &&
+							   tmp_strategy->next->date != calendar.w_date)
+							{
+								y_m_d_matched_next &= ~(0x01);
+							}
+							
+							if(y_m_d_matched_next == 0x07)
+							{
+								if(tmp_strategy->next->hour == calendar.hour &&
+								   tmp_strategy->next->minute == calendar.min && 
+								   tmp_strategy->next->second == calendar.sec)		//判断当前时间是否同该条策略时间相同
 								{
-									if(tmp_strategy->next->year != 0)	//判断策略中年是否有效
-									{
-										y_m_d_effective_next |= 0x04;
-									}
-
-									if(tmp_strategy->next->month != 0)	//判断策略中月是否有效
-									{
-										y_m_d_effective_next |= 0x02;
-									}
-
-									if(tmp_strategy->next->date != 0)	//判断策略中日是否有效
-									{
-										y_m_d_effective_next |= 0x01;
-									}
-
-									y_m_d_matched_next = 0x07;			//初始化年月日匹配成功标志
+									tmp_strategy = tmp_strategy->next;
+									
+									ret = 1;
 								}
-							}
-
-							if(ctrl->lock == 1)				//判断是否需要解开远程控制所
-							{
-								if(y_m_d_effective & 0x04 != (u32)0x00000000 &&
-								   tmp_strategy->year != calendar.w_year - 2000)
-								{
-									y_m_d_matched &= ~(0x04);
-								}
-
-								if(y_m_d_effective & 0x02 != (u32)0x00000000 &&
-								   tmp_strategy->month != calendar.w_month)
-								{
-									y_m_d_matched &= ~(0x02);
-								}
-
-								if(y_m_d_effective & 0x01 != (u32)0x00000000 &&
-								   tmp_strategy->date != calendar.w_date)
-								{
-									y_m_d_matched &= ~(0x01);
-								}
-
-								if(y_m_d_matched == 0x07)	//年月日全部匹配成功
-								{
-									current_time = calendar.hour * 3600 + calendar.min * 60 + calendar.sec;
-
-									if(tmp_strategy->next != NULL)				//下个策略有效
-									{
-										if(tmp_strategy->next->mode == 1)		//下个策略也是绝对时间方式
-										{
-											if(y_m_d_effective_next & 0x04 != (u32)0x00000000 &&
-											   tmp_strategy->next->year != calendar.w_year - 2000)
-											{
-												y_m_d_matched_next &= ~(0x04);
-											}
-
-											if(y_m_d_effective_next & 0x02 != (u32)0x00000000 &&
-											   tmp_strategy->next->month != calendar.w_month)
-											{
-												y_m_d_matched_next &= ~(0x02);
-											}
-
-											if(y_m_d_effective_next & 0x01 != (u32)0x00000000 &&
-											   tmp_strategy->next->date != calendar.w_date)
-											{
-												y_m_d_matched_next &= ~(0x01);
-											}
-
-											if(y_m_d_matched_next == 0x07)		//下个策略的年月日全部匹配成功
-											{
-												start_time_next = tmp_strategy->next->hour * 3600 +
-															      tmp_strategy->next->minute * 60 +
-															      tmp_strategy->next->second;
-
-												if(start_time < start_time_next)	//没有跨天
-												{
-													if(start_time <= current_time && current_time <= start_time_next)	//当前时间在当前策略和下个策略的时间段区间内
-													{
-														ctrl->lock = 0;				//解锁远程控制
-													}
-												}
-												else if(start_time > start_time_next)//跨天
-												{
-													if(start_time <= current_time && current_time <= gate24)
-													{
-														ctrl->lock = 0;				//解锁远程控制
-													}
-													else if(gate0 <= current_time && current_time <= start_time_next)
-													{
-														ctrl->lock = 0;				//解锁远程控制
-													}
-												}
-											}
-											else	//下个策略的年月日没有全部匹配成功
-											{
-												if(start_time <= current_time)	//当前时间大于等于起始执行时间
-												{
-													ctrl->lock = 0;				//解锁远程控制
-												}
-											}
-										}
-										else	//下个策略是相对时间方式
-										{
-											if(start_time <= current_time)		//当前时间大于等于起始执行时间
-											{
-												ctrl->lock = 0;					//解锁远程控制
-											}
-										}
-									}
-									else	//当前策略是最后一个策略,没有下个策略
-									{
-										if(start_time <= current_time)			//当前时间大于等于起始执行时间
-										{
-											ctrl->lock = 0;						//解锁远程控制
-										}
-									}
-								}
-							}
-
-							tmp_strategy->state = EXECUTING;	//下个状态将切换为 正在执行状态
-
-							if(tmp_strategy->state == EXECUTING)	//此判断无实际作用,置位消除编译器警告
-							{
-								goto GET_OUT;
-							}
-						break;
-
-						case EXECUTING:			//正在执行状态
-							if(y_m_d_effective & 0x04 != (u32)0x00000000 &&
-							   tmp_strategy->year != calendar.w_year - 2000)
-							{
-								y_m_d_matched &= ~(0x04);
-							}
-
-							if(y_m_d_effective & 0x02 != (u32)0x00000000 &&
-							   tmp_strategy->month != calendar.w_month)
-							{
-								y_m_d_matched &= ~(0x02);
-							}
-
-							if(y_m_d_effective & 0x01 != (u32)0x00000000 &&
-							   tmp_strategy->date != calendar.w_date)
-							{
-								y_m_d_matched &= ~(0x01);
-							}
-
-							if(y_m_d_matched == 0x07)	//年月日全部匹配成功
-							{
-								current_time = calendar.hour * 3600 + calendar.min * 60 + calendar.sec;
-
-								if(tmp_strategy->next != NULL)			//下个策略有效
-								{
-									if(tmp_strategy->next->mode == 1)	//下个策略也是绝对时间方式
-									{
-										if(y_m_d_effective_next & 0x04 != (u32)0x00000000 &&
-										   tmp_strategy->next->year != calendar.w_year - 2000)
-										{
-											y_m_d_matched_next &= ~(0x04);
-										}
-
-										if(y_m_d_effective_next & 0x02 != (u32)0x00000000 &&
-										   tmp_strategy->next->month != calendar.w_month)
-										{
-											y_m_d_matched_next &= ~(0x02);
-										}
-
-										if(y_m_d_effective_next & 0x01 != (u32)0x00000000 &&
-										   tmp_strategy->next->date != calendar.w_date)
-										{
-											y_m_d_matched_next &= ~(0x01);
-										}
-
-										if(y_m_d_matched_next == 0x07)	//下个策略的年月日全部匹配成功
-										{
-											start_time_next = tmp_strategy->next->hour * 3600 +
-						                                      tmp_strategy->next->minute * 60 +
-						                                      tmp_strategy->next->second;
-
-											if(start_time < start_time_next)	//没有跨天
-											{
-												if(start_time <= current_time && current_time <= start_time_next)	//当前时间在当前策略和下个策略的时间段区间内
-												{
-													if(start_time == current_time)
-													{
-														if(ctrl->lock == 1)				//判断是否需要解开远程控制所
-														{
-															ctrl->lock = 0;
-														}
-													}
-
-													if(ctrl->lock == 0)		//远程控制已解锁
-													{
-														ctrl->control_type = tmp_strategy->type;
-														ctrl->brightness = tmp_strategy->brightness;
-													}
-
-													if(current_time >= start_time_next)		//当前策略即将执行结束
-													{
-														tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
-													}
-
-													ret = 1;
-
-													goto GET_OUT;
-												}
-												else if(current_time > start_time_next)		//下个策略已过期
-												{
-													tmp_strategy->state = EXECUTED;			//当前策略已过期
-												}
-												else if(current_time < start_time)
-												{
-													goto GET_OUT;							//等待当前策略生效
-												}
-											}
-											else if(start_time > start_time_next)			//跨天
-											{
-												if(start_time <= current_time && current_time <= gate24)
-												{
-													if(start_time == current_time)
-													{
-														if(ctrl->lock == 1)				//判断是否需要解开远程控制所
-														{
-															ctrl->lock = 0;
-														}
-													}
-
-													if(ctrl->lock == 0)		//远程控制已解锁
-													{
-														ctrl->control_type = tmp_strategy->type;
-														ctrl->brightness = tmp_strategy->brightness;
-													}
-
-//													if(current_time >= start_time_next)		//当前策略即将执行结束
-//													{
-//														tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
-//													}
-
-													ret = 1;
-
-													goto GET_OUT;
-												}
-												else if(gate0 <= current_time && current_time <= start_time_next)
-												{
-													if(gate0 == current_time)
-													{
-														if(ctrl->lock == 1)				//判断是否需要解开远程控制所
-														{
-															ctrl->lock = 0;
-														}
-													}
-
-													if(ctrl->lock == 0)		//远程控制已解锁
-													{
-														ctrl->control_type = tmp_strategy->type;
-														ctrl->brightness = tmp_strategy->brightness;
-													}
-
-													if(current_time >= start_time_next)		//当前策略即将执行结束
-													{
-														tmp_strategy->state = EXECUTED;		//下个状态将切换为 已过期状态
-													}
-
-													ret = 1;
-
-													goto GET_OUT;
-												}
-												else if(current_time > start_time_next && current_time < start_time)		//下个策略已过期
-												{
-													tmp_strategy->state = RES_EXECUTE;			//当前策略需预留执行
-
-//													tmp_strategy = tmp_strategy->next;
-//													goto FOR_LOOP;
-												}
-												else if(current_time < start_time)
-												{
-													goto GET_OUT;							//等待当前策略生效
-												}
-											}
-										}
-										else	//下个策略的年月日没有全部匹配成功
-										{
-											start_time = tmp_strategy->hour * 3600 +
-						                                 tmp_strategy->minute * 60 +
-						                                 tmp_strategy->second;
-
-											if(start_time <= current_time)	//当前时间大于等于起始执行时间
-											{
-												if(start_time == current_time)
-												{
-													if(ctrl->lock == 1)				//判断是否需要解开远程控制所
-													{
-														ctrl->lock = 0;
-													}
-												}
-
-												if(ctrl->lock == 0)			//远程控制已解锁
-												{
-													ctrl->control_type = tmp_strategy->type;
-													ctrl->brightness = tmp_strategy->brightness;
-												}
-
-												ret = 1;
-
-												goto GET_OUT;
-											}
-										}
-									}
-									else	//下个策略是相对时间方式
-									{
-										start_time = tmp_strategy->hour * 3600 +
-						                             tmp_strategy->minute * 60 +
-						                             tmp_strategy->second;
-
-										if(start_time <= current_time)	//当前时间大于等于起始执行时间
-										{
-											if(start_time == current_time)
-											{
-												if(ctrl->lock == 1)				//判断是否需要解开远程控制所
-												{
-													ctrl->lock = 0;
-												}
-											}
-
-											if(ctrl->lock == 0)			//远程控制已解锁
-											{
-												ctrl->control_type = tmp_strategy->type;
-												ctrl->brightness = tmp_strategy->brightness;
-											}
-
-											ret = 1;
-
-											goto GET_OUT;
-										}
-									}
-								}
-								else	//当前策略是最后一个策略,没有下个策略
+								else
 								{
 									start_time = tmp_strategy->hour * 3600 +
-						                         tmp_strategy->minute * 60 +
-						                         tmp_strategy->second;
-
-									if(start_time <= current_time)	//当前时间大于等于起始执行时间
+												 tmp_strategy->minute * 60 +
+												 tmp_strategy->second;
+									
+									start_time_next = tmp_strategy->next->hour * 3600 +
+													  tmp_strategy->next->minute * 60 +
+													  tmp_strategy->next->second;
+									
+									current_time = calendar.hour * 3600 + 
+									               calendar.min * 60 + 
+									               calendar.sec;
+									
+									if(start_time < start_time_next)													//该条策略时间早于next的时间
 									{
-										if(start_time == current_time)
+										if(start_time <= current_time && current_time <= start_time_next)	//判断当前时间是否在两条策略时间段中间
 										{
-											if(ctrl->lock == 1)				//判断是否需要解开远程控制所
-											{
-												ctrl->lock = 0;
-											}
+											ret = 1;
 										}
-
-										if(ctrl->lock == 0)			//远程控制已解锁
+									}
+									else if(start_time > start_time_next)									//该条策略时间晚于next的时间
+									{
+										if(start_time <= current_time && current_time <= gate24)			//判断当前时间是否在该条策略时间和24点时间段中间
 										{
-											ctrl->control_type = tmp_strategy->type;
-											ctrl->brightness = tmp_strategy->brightness;
+											ret = 1;
 										}
-
-										ret = 1;
-
-										goto GET_OUT;
+										else if(gate0 <= current_time && current_time <= start_time_next)	//判断当前时间是否在0点和next的时间段中间
+										{
+											ret = 1;
+										}
 									}
 								}
 							}
-						break;
+						}
+						else
+						{
+#ifdef CHANG_ZHOU_APN
+							ret = 0;
+#else
+							ret = 1;
+#endif
+						}
+					}
+					
+					if(ret == 1)
+					{
+						current_ctrl.control_type = tmp_strategy->type;
+						current_ctrl.brightness = tmp_strategy->brightness;
 
-						case EXECUTED:			//已过期状态
-
-						break;
-
-						default:				//未知状态
-//							ctrl->brightness = LampsRunMode.run_mode[0].initial_brightness;		//设置当前亮度为当前运行模式的初始亮度
-						break;
+						goto UPDATE_PERCENT;
 					}
 				break;
 
 				default:	//未知方式
-//					ctrl->brightness = LampsRunMode.run_mode[0].initial_brightness;		//设置当前亮度为当前运行模式的初始亮度
+					current_ctrl.control_type = 2;
+					current_ctrl.brightness = (u8)(((float)LampsRunMode.run_mode[0].initial_brightness / 100.0f) * 255.0f);		//设置当前亮度为当前运行模式的初始亮度
 				break;
 			}
 		}
 	}
 	else	//策略列表无效 为空
 	{
-//		ctrl->brightness = LampsRunMode.run_mode[0].initial_brightness;		//设置当前亮度为当前运行模式的初始亮度
+		current_ctrl.control_type = 2;
+		current_ctrl.brightness = (u8)(((float)LampsRunMode.run_mode[0].initial_brightness / 100.0f) * 255.0f);		//设置当前亮度为当前运行模式的初始亮度
 	}
 
-	GET_OUT:
+	UPDATE_PERCENT:
+	if(last_ctrl.control_type != current_ctrl.control_type ||
+	   last_ctrl.brightness != current_ctrl.brightness)
+	{
+		last_ctrl.control_type = current_ctrl.control_type;
+		last_ctrl.brightness = current_ctrl.brightness;
+
+		ctrl->control_type = current_ctrl.control_type;
+		ctrl->brightness = current_ctrl.brightness;
+	}
+	
 	xSemaphoreGive(xMutex_STRATEGY);
 
 	return ret;

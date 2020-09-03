@@ -239,7 +239,7 @@ void CheckEventsEC16(RemoteControl_S ctrl)
 //单灯异常开灯
 void CheckEventsEC17(RemoteControl_S ctrl)
 {
-	static s8 cnt = 0;
+	static s16 cnt = 0;
 	static u8 occur = 0;
 	u8 buf[4];
 
@@ -252,20 +252,28 @@ void CheckEventsEC17(RemoteControl_S ctrl)
 			{
 				if(occur == 0)
 				{
-					if(cnt < 100)
+					if(cnt < 1200)
 					{
 						cnt ++;
 					}
+				}
+				else if(cnt < 0)
+				{
+					cnt = 0;
 				}
 			}
 			else
 			{
 				if(occur == 1)
 				{
-					if(cnt > -100)
+					if(cnt > -1200)
 					{
 						cnt --;
 					}
+				}
+				else if(cnt > 0)
+				{
+					cnt = 0;
 				}
 			}
 		}
@@ -275,7 +283,7 @@ void CheckEventsEC17(RemoteControl_S ctrl)
 			occur = 0;
 		}
 
-		if(cnt >= 100)
+		if(cnt >= 1200)
 		{
 			cnt = 0;
 			occur = 1;
@@ -289,7 +297,7 @@ void CheckEventsEC17(RemoteControl_S ctrl)
 
 			RecordEventsECx(EVENT_ERC17,4,buf);
 		}
-		else if(cnt <= -100)
+		else if(cnt <= -1200)
 		{
 			cnt = 0;
 			occur = 0;
@@ -309,7 +317,7 @@ void CheckEventsEC17(RemoteControl_S ctrl)
 //单灯异常关灯
 void CheckEventsEC18(RemoteControl_S ctrl)
 {
-	static s8 cnt = 0;
+	static s16 cnt = 0;
 	static u8 occur = 0;
 	u8 buf[4];
 
@@ -322,22 +330,29 @@ void CheckEventsEC18(RemoteControl_S ctrl)
 			{
 				if(occur == 0)
 				{
-					if(cnt < 100)
+					if(cnt < 1200)
 					{
 						cnt ++;
 					}
+				}
+				else if(cnt < 0)
+				{
+					cnt = 0;
 				}
 			}
 			else
 			{
 				if(occur == 1)
 				{
-					if(cnt > -100)
+					if(cnt > -1200)
 					{
 						cnt --;
 					}
 				}
-
+				else if(cnt > 0)
+				{
+					cnt = 0;
+				}
 			}
 		}
 		else
@@ -346,7 +361,7 @@ void CheckEventsEC18(RemoteControl_S ctrl)
 			occur = 0;
 		}
 
-		if(cnt >= 100)
+		if(cnt >= 1200)
 		{
 			cnt = 0;
 			occur = 1;
@@ -360,7 +375,7 @@ void CheckEventsEC18(RemoteControl_S ctrl)
 
 			RecordEventsECx(EVENT_ERC18,4,buf);
 		}
-		else if(cnt <= -100)
+		else if(cnt <= -1200)
 		{
 			cnt = 0;
 			occur = 0;
@@ -383,7 +398,7 @@ void CheckEventsEC19(RemoteControl_S ctrl)
 	static RemoteControl_S control;
 	static time_t time_cnt = 0;
 	static u8 occur = 0;
-	static s8 cnt = 0;
+	static s16 cnt = 0;
 	static u8 first = 1;
 	u8 buf[7];
 
@@ -416,20 +431,17 @@ void CheckEventsEC19(RemoteControl_S ctrl)
 				if((InputCurrent - CurrentControl.current) / CurrentControl.current >=
 				  (float)EventDetectConf.over_current_ratio / 100.0f)
 				{
-					if(cnt < 100)
+					if(cnt < 1200)
 					{
 						cnt ++;
 					}
 				}
 				else
 				{
-					if(cnt > 0)
-					{
-						cnt --;
-					}
+					cnt = 0;
 				}
 
-				if(cnt >= 100)
+				if(cnt >= 1200)
 				{
 					cnt = 0;
 					occur = 1;
@@ -450,20 +462,17 @@ void CheckEventsEC19(RemoteControl_S ctrl)
 				if((InputCurrent - CurrentControl.current) / CurrentControl.current <=
 				  (float)EventDetectConf.over_current_recovery_ratio / 100.0f)
 				{
-					if(cnt < 100)
+					if(cnt < 1200)
 					{
 						cnt ++;
 					}
 				}
 				else
 				{
-					if(cnt > 0)
-					{
-						cnt --;
-					}
+					cnt = 0;
 				}
 
-				if(cnt >= 100)
+				if(cnt >= 1200)
 				{
 					cnt = 0;
 					occur = 0;
@@ -489,7 +498,7 @@ void CheckEventsEC20(RemoteControl_S ctrl)
 	static RemoteControl_S control;
 	static time_t time_cnt = 0;
 	static u8 occur = 0;
-	static s8 cnt = 0;
+	static s16 cnt = 0;
 	static u8 first = 1;
 	u8 buf[7];
 
@@ -522,20 +531,17 @@ void CheckEventsEC20(RemoteControl_S ctrl)
 				if((CurrentControl.current - InputCurrent) / CurrentControl.current >=
 				  (float)EventDetectConf.low_current_ratio / 100.0f)
 				{
-					if(cnt < 100)
+					if(cnt < 1200)
 					{
 						cnt ++;
 					}
 				}
 				else
 				{
-					if(cnt > 0)
-					{
-						cnt --;
-					}
+					cnt = 0;
 				}
 
-				if(cnt >= 100)
+				if(cnt >= 1200)
 				{
 					cnt = 0;
 					occur = 1;
@@ -556,20 +562,17 @@ void CheckEventsEC20(RemoteControl_S ctrl)
 				if((CurrentControl.current - InputCurrent) / CurrentControl.current <=
 				  (float)EventDetectConf.low_current_recovery_ratio / 100.0f)
 				{
-					if(cnt < 100)
+					if(cnt < 1200)
 					{
 						cnt ++;
 					}
 				}
 				else
 				{
-					if(cnt > 0)
-					{
-						cnt --;
-					}
+					cnt = 0;
 				}
 
-				if(cnt >= 100)
+				if(cnt >= 1200)
 				{
 					cnt = 0;
 					occur = 0;

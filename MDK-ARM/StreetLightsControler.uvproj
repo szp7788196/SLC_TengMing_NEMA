@@ -351,7 +351,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F10X_HD,USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\CORE;..\DEVICEDRIVER;..\FREERTOS\inc;..\MEMORY;..\JSON;..\FWLIB\inc;..\PROTOCOL;..\SYSTEM\delay;..\SYSTEM\sys;..\USER;..\PERIPHERAL\iic1;..\DEVICEDRIVER\24cxx;..\DEVICEDRIVER\sht2x;..\DEVICEDRIVER\bh1750;..\PERIPHERAL\iic2;..\DEVICEDRIVER\led;..\PERIPHERAL\rtc;..\PERIPHERAL\usart;..\DEVICEDRIVER\bg96;..\PLATFORMS;..\DEVICEDRIVER\power;..\DEVICEDRIVER\m53xx;..\DEVICEDRIVER\att7059x;..\DEVICEDRIVER\cd4015b;..\DEVICEDRIVER\dali;..\PERIPHERAL\dac;..\DEVICEDRIVER\pwm;..\ONENET\include</IncludePath>
+              <IncludePath>..\CORE;..\DEVICEDRIVER;..\FREERTOS\inc;..\MEMORY;..\JSON;..\FWLIB\inc;..\PROTOCOL;..\SYSTEM\delay;..\SYSTEM\sys;..\USER;..\PERIPHERAL\iic1;..\DEVICEDRIVER\24cxx;..\DEVICEDRIVER\sht2x;..\DEVICEDRIVER\bh1750;..\PERIPHERAL\iic2;..\DEVICEDRIVER\led;..\PERIPHERAL\rtc;..\PERIPHERAL\usart;..\DEVICEDRIVER\bg96;..\PLATFORMS;..\DEVICEDRIVER\power;..\DEVICEDRIVER\m53xx;..\DEVICEDRIVER\att7059x;..\DEVICEDRIVER\cd4015b;..\DEVICEDRIVER\dali;..\PERIPHERAL\dac;..\DEVICEDRIVER\pwm;..\ONENET\include;..\DEVICEDRIVER\stmflash</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -571,6 +571,11 @@
               <FileName>m53xx.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\DEVICEDRIVER\m53xx\m53xx.c</FilePath>
+            </File>
+            <File>
+              <FileName>stmflash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\DEVICEDRIVER\stmflash\stmflash.c</FilePath>
             </File>
           </Files>
         </Group>

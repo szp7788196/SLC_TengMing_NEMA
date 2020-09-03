@@ -53,6 +53,9 @@
 //#define PUBLIC_NET_NO_APN
 
 
+#define SHOW_VERSION								//展示版本，投标用
+
+
 
 #define SOFT_WARE_VRESION				101			//软件版本号
 
@@ -71,6 +74,7 @@
 #define FIRMWARE_RUN_FLASH_BASE_ADD		0x08006000	//程序运行地址
 #define FIRMWARE_BUCKUP_FLASH_BASE_ADD	0x08043000	//程序备份地址
 #define FIRMWARE_MAX_FLASH_ADD			0x08080000	//FLSAH最大地址
+#define FIRMWARE_LAST_PAGE_ADD			0x0807F800	//FLSAH最大地址
 #define FIRMWARE_SIZE					FIRMWARE_BUCKUP_FLASH_BASE_ADD - FIRMWARE_RUN_FLASH_BASE_ADD
 
 #define DEVICE_TYPE					'G'			//设备类型
@@ -167,8 +171,8 @@
 #define APPOIN_LABLE_ADD				6868	//预约控制标签
 #define APPOIN_LABLE_LEN				16
 #define APPOIN_CONTENT_ADD				6884	//预约控制内容 共10组
-//#define APPOIN_CONTENT_LEN				6
-#define APPOIN_CONTENT_LEN				5
+#define APPOIN_CONTENT_LEN				6
+//#define APPOIN_CONTENT_LEN				5
 
 #define ILLUM_THRE_ADD					6944	//光照度阈值
 #define ILLUM_THRE_LEN					6
@@ -198,7 +202,7 @@
 #define DEV_MODEL_LEN					10
 
 #define HW_RE_DATE_ADD					7017	//终端硬件发布日期
-#define HW_RE_DATE_LEN					10
+#define HW_RE_DATE_LEN					5
 
 #define SUP_LAMPS_NUM_ADD				7022	//支持灯数
 #define SUP_LAMPS_NUM_LEN				3
@@ -312,6 +316,8 @@ extern LampsParameters_S LampsParameters;
 extern LampsRunMode_S LampsRunMode;
 
 /*********************单灯节能运行模式数据************************/
+extern u8 EnergySavingModeNum;
+extern u8 EnergySavingModeNumFlash;
 extern EnergySavingMode_S EnergySavingMode[MAX_ENERGY_SAVING_MODE_NUM];
 
 /***********************单灯预约控制数据**************************/

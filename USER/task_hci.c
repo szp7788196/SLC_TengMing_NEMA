@@ -5,8 +5,9 @@
 #include "inventr.h"
 #include "at_protocol.h"
 #include "task_sensor.h"
+#include "stmflash.h"
 
-
+u8 ret = 0;
 TaskHandle_t xHandleTaskHCI = NULL;
 unsigned portBASE_TYPE HCI_Satck;
 void vTaskHCI(void *pvParameters)
@@ -17,6 +18,19 @@ void vTaskHCI(void *pvParameters)
 #ifdef DEBUG_LOG
 	printf("READY\r\n");
 #endif
+	
+//	WriteDeviceBaseInfoFlash();
+//	ret = ReadDeviceBaseInfoFlash();
+
+//	WriteLampsRunModeFlash();
+//	ret = ReadLampsRunModeFlash();
+//	
+//	WriteAppointmentControlFlash();
+//	ret = ReadAppointmentControlFlash();
+//	
+//	WriteEnergySavingModeFlash(0);
+//	ReadEnergySavingModeFlash();
+
 	
 	while(1)
 	{
@@ -79,6 +93,8 @@ u16 HCI_DataAnalysis(u8 *inbuf,u16 inbuf_len,u8 *outbuf)
 				WriteDataFromMemoryToEeprom(buf,
 					                        DEV_BASIC_INFO_ADD,
 					                        DEV_BASIC_INFO_LEN - 2);	//¥Ê»ÎEEPROM
+				
+				WriteDeviceBaseInfoFlash();
 				
 				memset(temp_buf,0,32);
 				HexToStr((char*)temp_buf,DeviceBaseInfo.mail_add,7);

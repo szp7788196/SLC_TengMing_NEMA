@@ -71,6 +71,16 @@ void vTaskSENSOR(void *pvParameters)
 		{
 			PowerFactor = (InputPowerP / InputPowerS) * 1000.0f;
 		}
+		
+#ifdef SHOW_VERSION
+		if(CurrentControl.control_type == 1 ||
+	      (CurrentControl.control_type == 2 && CurrentControl.brightness == 0))		//πÿµ∆
+		{
+			InputPowerP = 0;
+			InputPowerS = 0;
+			PowerFactor = 0;
+		}
+#endif
 
 		//µÁ—π
 		DeviceElectricPara.volatge[0] = (((((u16)(InputVoltage * 10)) / 10) % 10) << 4) + ((((u16)(InputVoltage * 10)) % 10) & 0x0F);

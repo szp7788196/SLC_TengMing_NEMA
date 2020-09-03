@@ -2,6 +2,7 @@
 #include "24cxx.h"
 #include "m53xx.h"
 #include "event.h"
+#include "stmflash.h"
 
 
 //u8 HoldReg[HOLD_REG_LEN];			//保持寄存器 临时使用
@@ -62,6 +63,8 @@ LampsParameters_S LampsParameters;
 LampsRunMode_S LampsRunMode;
 
 /*********************单灯节能运行模式数据************************/
+u8 EnergySavingModeNum = 0;
+u8 EnergySavingModeNumFlash = 0;
 EnergySavingMode_S EnergySavingMode[MAX_ENERGY_SAVING_MODE_NUM];
 
 /***********************单灯预约控制数据**************************/
@@ -894,10 +897,11 @@ u8 ReadUpCommPortPara(void)
 		UpCommPortPara.master_retry_times 			= 3;
 		UpCommPortPara.need_master_confirm 			= 1;
 		UpCommPortPara.heart_beat_cycle 			= 30;
-		UpCommPortPara.random_peak_staggering_time 	= 1200;
+		UpCommPortPara.random_peak_staggering_time 	= 50;
 		UpCommPortPara.specify_peak_staggering_time = 0;
 	}
 
+	
 	srand((unsigned int)GetSysTick1s());
 
 	return ret;
@@ -1033,7 +1037,7 @@ u8 ReadEventRecordConf(void)
 		memset(EventRecordConf.important,0xFF,8);
 		memset(EventRecordConf.auto_report,0xFF,8);
 		
-		EventRecordConf.auto_report[5] = 0xF3;		//电流过大/过小事件不上报
+		EventRecordConf.auto_report[5] = 0xF0;		//电流过大/过小/异常开关灯事件不上报
 	}
 
 	EventEffective = ((((long long)EventRecordConf.effective[0]) << 56) & 0xFF00000000000000) +
@@ -1361,6 +1365,8 @@ u8 ReadEnergySavingMode(void)
 	u16 i = 0;
 	u16 j = 0;
 	u8 buf[E_SAVE_MODE_LABLE_LEN];
+	
+	EnergySavingModeNum = 0;
 
 	memset(buf,0,E_SAVE_MODE_LABLE_LEN);
 
@@ -1372,6 +1378,8 @@ u8 ReadEnergySavingMode(void)
 
 		if(ret == 1)
 		{
+			EnergySavingModeNum ++;
+			
 			EnergySavingMode[i].mode_id = *(buf + 0);
 			memcpy(EnergySavingMode[i].mode_name,buf + 1,32);
 			EnergySavingMode[i].control_times = *(buf + 33);
@@ -1447,8 +1455,8 @@ u8 ReadAppointmentControl(void)
 		if(ret == 1)
 		{
 			AppointmentControl.run_mode[i].lamps_id 				= ((((u16)(*(buf + 1))) << 8) + (u16)(*(buf + 0)));
-			AppointmentControl.run_mode[i].initial_brightness 		= *(buf + 2);
-			AppointmentControl.run_mode[i].energy_saving_mode_id 	= *(buf + 3);
+			AppointmentControl.run_mode[i].energy_saving_mode_id 	= *(buf + 2);
+			AppointmentControl.run_mode[i].initial_brightness 		= *(buf + 3);
 		}
 		else
 		{
@@ -1834,7 +1842,7 @@ u8 ReadFrameWareState(void)
 	if(FrameWareState.state == FIRMWARE_DOWNLOADING ||
 	   FrameWareState.state == FIRMWARE_DOWNLOAD_WAIT)
 	{
-		page_num = (FIRMWARE_MAX_FLASH_ADD - FIRMWARE_BUCKUP_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
+		page_num = (FIRMWARE_LAST_PAGE_ADD - FIRMWARE_BUCKUP_FLASH_BASE_ADD) / 2048;	//得到备份区的扇区总数
 
 		FLASH_Unlock();						//解锁FLASH
 
@@ -2082,7 +2090,7 @@ u8 ReadHardWareReleaseDate(void)
 u8 ReadLamosNumSupport(void)
 {
 	u8 ret = 0;
-	u8 buf[HW_RE_DATE_LEN];
+	u8 buf[SUP_LAMPS_NUM_LEN];
 
 	memset(buf,0,SUP_LAMPS_NUM_LEN);
 
@@ -2499,18 +2507,86 @@ void RestoreFactorySettings(u8 mode)
 //在EEPROM中读取运行参数
 void ReadParametersFromEEPROM(void)
 {
+	u8 ret1 = 0;
+	u8 ret2 = 0;
+//	u8 i = 0;
+	
 	ReadUpCommPortPara();
 	ReadServerInfo();
 	ReadEventRecordConf();
-	ReadDeviceBaseInfo();
+	
+	ret1 = ReadDeviceBaseInfo();
+	if(ret1 == 0)
+	{
+		ret2 = ReadDeviceBaseInfoFlash();
+	}
+	else if(ret1 == 1)
+	{
+		ret2 = ReadDeviceBaseInfoFlash();
+		
+		if(ret2 == 0)
+		{
+			WriteDeviceBaseInfoFlash();
+		}
+	}
+	
 	ReadEventDetectTimeConf();
 	ReadEventDetectThreConf();
 	ReadRSA_PublicKey();
 	ReadLampsSwitchProject();
 	ReadLampsParameters();
-	ReadLampsRunMode();
+	
+	ret1 = ReadLampsRunMode();
+//	if(ret1 == 0)
+//	{
+//		ret2 = ReadLampsRunModeFlash();
+//	}
+//	else if(ret1 == 1)
+//	{
+//		ret2 = ReadLampsRunModeFlash();
+//		
+//		if(ret2 == 0)
+//		{
+//			WriteLampsRunModeFlash();
+//		}
+//	}
+	
 	ReadEnergySavingMode();
-	ReadAppointmentControl();
+	if(EnergySavingModeNum == 0)
+	{
+		ReadEnergySavingModeFlash();
+	}
+//	else if(EnergySavingModeNum != 0)
+//	{
+//		ReadEnergySavingModeFlash();
+//		
+//		if(EnergySavingModeNumFlash != EnergySavingModeNum)
+//		{
+//			for(i = 0; i < MAX_ENERGY_SAVING_MODE_NUM; i ++)
+//			{
+//				if((EnergySavingModeNum & (1 << i)))
+//				{
+//					WriteEnergySavingModeFlash(i);
+//				}
+//			}
+//		}
+//	}
+	
+	ret1 = ReadAppointmentControl();
+	if(ret1 == 0)
+	{
+		ret2 = ReadAppointmentControlFlash();
+	}
+//	else if(ret1 == 1)
+//	{
+//		ret2 = ReadAppointmentControlFlash();
+//		
+//		if(ret2 == 0)
+//		{
+//			WriteAppointmentControlFlash();
+//		}
+//	}
+	
 	ReadIlluminanceThreshold();
 	ReadSwitchMode();
 	ReadUploadInterval();

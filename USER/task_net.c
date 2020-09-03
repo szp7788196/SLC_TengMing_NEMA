@@ -141,8 +141,13 @@ void res_update(void)
 			LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
 		}
 	}
+#ifdef PUBLIC_NET_NO_APN
+	else if(GetSysTick1s() - times_sec >= 20 && 
+		    UploadInterval != 0)
+#else
 	else if(GetSysTick1s() - times_sec >= UploadDataStaggeredPeakInterval && 
 		    UploadInterval != 0)
+#endif
 	{
 		times_sec = GetSysTick1s();
 
@@ -161,7 +166,7 @@ void res_update(void)
 		LinkLayerUpPacketCarrier.flag |= NBIOT_UPDATED;					//数据上传标志置位
 	}
 #ifdef PUBLIC_NET_NO_APN
-		else if(GetSysTick1s() - times_sec >= 20)
+		else if(GetSysTick1s() - times_sec >= 15)
 #else
 		else if(GetSysTick1s() - times_sec >= HeartBeatStaggeredPeakInterval)
 #endif
